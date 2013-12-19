@@ -1,7 +1,5 @@
 #include "dumpPkg.h"
 
-#include <iostream>
-
 Film::Film(string filePath) {
 	m_filePath = filePath;	
 	m_ic = NULL;
@@ -29,7 +27,7 @@ void Film::open() {
 	
 	av_dump_format(m_ic, 0, m_filePath.c_str(), 0);
 
-	for(int i = 0; i < m_ic->nb_streams; i++) {
+	for(unsigned int i = 0; i < m_ic->nb_streams; i++) {
 		if(m_audioIdx < 0 && m_ic->streams[i]->codec->codec_type == AVMEDIA_TYPE_AUDIO)			m_audioIdx = i; 
 		if(m_videoIdx < 0 && m_ic->streams[i]->codec->codec_type == AVMEDIA_TYPE_VIDEO)
 			m_videoIdx = i;
@@ -81,14 +79,14 @@ void Film::play() {
 	open();
 
 	while(m_quit) {
-		AVPacket *pkt = av_malloc(sizeof(AVPacket));
+		AVPacket *pkt = (AVPacket*)av_malloc(sizeof(AVPacket));
 		av_init_packet(pkt);
 
 		int ret = av_read_frame(m_ic, pkt);				
 		if(ret < 0) {
-			if(ret == AVERROR_EOF || url_eof(m_ic->pb))
+			if(ret == AVERROR_EOF || url_feof(m_ic->pb))
 				break;
-			if(m_ic->pb && m_ic->pb_error)
+			if(m_ic->pb && m_ic->pb->error)
 				break;
 			continue;
 		}	
@@ -101,13 +99,13 @@ void Film::play() {
 	}
 }
 
-void Film::push_pkt(int *pkt) {
+void Film::push_pkt(AVPacket *pkt) {
 	m_pktQueue.push(pkt);	
 }
 
 
 Cinema::Cinema() {
-	init();
+	initDevice();
 }
 
 Cinema::~Cinema() {
@@ -115,14 +113,14 @@ Cinema::~Cinema() {
 }
 
 void Cinema::initDevice() {
+	
+	XInitThreads();
 	avcodec_register_all();
 	avdevice_register_all();
 	avfilter_register_all();
 	av_register_all();
 	avformat_network_init();
 
-	XInitThreads();
-	
 	m_screenWidth = 640;
 	m_screenHeight = 480;
 
@@ -130,6 +128,7 @@ void Cinema::initDevice() {
 
 void Cinema::playFilm(Film *film) {
 	m_film = film;	
+	m_film->play();
 }
 
 

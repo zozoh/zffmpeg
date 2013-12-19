@@ -9,7 +9,10 @@
 
 int main(int argc, char **argv) {
 
-	Film aFilm = new Film("/home/sijiewang/Videos/21over-tlr1_h1080p.mov");
-	Cinema aCinema = new Cinema();
+	Cinema *aCinema = new Cinema();
+	Film *aFilm = new Film("/home/sijiewang/Videos/21over-tlr1_h1080p.mov");
 	aCinema->playFilm(aFilm);
+
+	pause();
+	cout << "Quit Cinema" << endl;	
 }

@@ -10,6 +10,7 @@
 
 #include <string>
 #include <queue>
+#include <iostream>
 
 extern "C" {
 #ifdef __cplusplus
@@ -22,6 +23,8 @@ extern "C" {
 
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
+#include <libavdevice/avdevice.h>
+#include <libavfilter/avfilter.h>
 #include <libswscale/swscale.h>
 #include <libswresample/swresample.h>
 #include <libavutil/avstring.h>
@@ -29,6 +32,7 @@ extern "C" {
 #include <libavutil/log.h>
 #include <SDL/SDL.h>
 #include <SDL/SDL_thread.h>
+#include <X11/Xlib.h>
 #include <stdio.h>
 #include <math.h>
 }
