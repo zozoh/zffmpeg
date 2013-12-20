@@ -6,6 +6,7 @@ Film::Film(string filePath) {
 	m_videoIdx = -1;
 	m_audioIdx = -1;
 	m_quit = false;
+	m_pktCount = 0;
 }
 
 Film::~Film() {
@@ -78,7 +79,7 @@ void Film::init() {
 void Film::play() {
 	open();
 
-	while(m_quit) {
+	while(!m_quit) {
 		AVPacket *pkt = (AVPacket*)av_malloc(sizeof(AVPacket));
 		av_init_packet(pkt);
 
@@ -100,6 +101,14 @@ void Film::play() {
 }
 
 void Film::push_pkt(AVPacket *pkt) {
+	m_pktCount++;
+
+	cout << "push pkt: "
+			 << " NO! " << m_pktCount
+			 << " size: " << pkt->size
+			 << " type: " << ((pkt->stream_index == m_videoIdx) ? "video" : "audio")
+			 << endl;
+
 	m_pktQueue.push(pkt);	
 }
 

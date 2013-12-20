@@ -66,6 +66,7 @@ class Film {
 		bool m_quit;
 
 		queue<AVPacket*> m_pktQueue;
+		unsigned long m_pktCount;
 };
 
 class Cinema {
