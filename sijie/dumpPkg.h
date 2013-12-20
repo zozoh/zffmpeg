@@ -11,6 +11,8 @@
 #include <string>
 #include <queue>
 #include <iostream>
+#include <boost/archive/text_oarchive.hpp>
+#include <boost/archive/text_iarchive.hpp>
 
 extern "C" {
 #ifdef __cplusplus
@@ -38,6 +40,80 @@ extern "C" {
 }
 
 using namespace std;
+
+class SerializePkt {
+	
+public:
+	SerializePkt();
+	SerializePkt(AVPacket *pkt);
+
+private:
+	friend class boost::serialization::access;
+	template<class Archive>
+	void serialize(Archive &ar, const unsigned int version); 
+
+private:
+	uint8_t *AVPacket_AVBufferRef_AVBuffer_data;		
+	int AVPacket_AVBufferRef_AVBuffer_size;
+	volatile int AVPacket_AVBufferRef_AVBuffer_refcount;
+	void(*AVPacket_AVBufferRef_AVBuffer_free)(void *opaque, uint8_t *data);
+	void *AVPacket_AVBufferRef_AVBuffer_opaque;
+	int AVPacket_AVBufferRef_AVBuffer_flags;
+
+	uint8_t AVPacket_AVBufferRef_data;
+	int AVPacket_AVBufferRef size;
+
+	int64_t AVPacket_pts;
+	int64_t AVPacket_dts;
+
+	uint8_t *AVPacket_data;
+	int AVPacket_size;
+
+	int AVPacket_stream_index;
+	int AVPacket_flags;
+
+	uint8_t *AVPacket_side_data_data;
+	int AVPacket_size_data_size;
+	enum AVPacketSideDataType  AVPacket_size_data_type;
+
+	int AVPacket_side_data_elems;
+
+	int AVPacket_duration;
+	int64_t AVPacket_pos;
+	int64_t AVPacket_convergence_duration;
+
+	AVPacket *pkt;
+};
+
+class MyAVPacket {
+public:
+	MyAVPacket();
+
+private:
+	friend boost::serialization::access;
+	template<class Archive>
+	void serialize(Archive &ar, const unsigned int version); 
+
+public:
+    int64_t pts;
+    int64_t dts;
+    uint8_t *data;
+    int   size;
+    int   stream_index;
+    int   flags;
+    struct {
+        uint8_t *data;
+        int      size;
+        enum AVPacketSideDataType type;
+    } *side_data;
+    int side_data_elems;
+
+    int   duration;
+    void  (*destruct)(struct AVPacket *);
+    void  *priv;
+    int64_t pos;                           
+	int64_t convergence_duration;
+};
 
 class Film {
 

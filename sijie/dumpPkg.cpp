@@ -1,5 +1,31 @@
 #include "dumpPkg.h"
 
+SerializePkt::SerializePkt() {
+	m_pkt = NULL;
+}
+
+SerializePkt::SerializePkt(AVPacket *pkt) {
+	m_pkt = pkt;
+}
+
+template<class Archive>
+void SerializePkt::serialize(Archive &ar, const unsigned int version) {
+	
+}
+
+MyAVPacket::MyAVPacket() {
+	
+}
+
+template<class Archive>
+void MyAVPacket::serialize(Archive &ar, const unsigned int version) {
+	ar & pts;
+	ar & dts;
+		
+}
+
+
+
 Film::Film(string filePath) {
 	m_filePath = filePath;	
 	m_ic = NULL;
