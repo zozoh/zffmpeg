@@ -1,6 +1,30 @@
 #include "dumpPkg.h"
 
-#include <iostream>
+SerializePkt::SerializePkt() {
+	m_pkt = NULL;
+}
+
+SerializePkt::SerializePkt(AVPacket *pkt) {
+	m_pkt = pkt;
+}
+
+template<class Archive>
+void SerializePkt::serialize(Archive &ar, const unsigned int version) {
+	
+}
+
+MyAVPacket::MyAVPacket() {
+	
+}
+
+template<class Archive>
+void MyAVPacket::serialize(Archive &ar, const unsigned int version) {
+	ar & pts;
+	ar & dts;
+		
+}
+
+
 
 Film::Film(string filePath) {
 	m_filePath = filePath;	
@@ -8,6 +32,7 @@ Film::Film(string filePath) {
 	m_videoIdx = -1;
 	m_audioIdx = -1;
 	m_quit = false;
+	m_pktCount = 0;
 }
 
 Film::~Film() {
@@ -29,7 +54,7 @@ void Film::open() {
 	
 	av_dump_format(m_ic, 0, m_filePath.c_str(), 0);
 
-	for(int i = 0; i < m_ic->nb_streams; i++) {
+	for(unsigned int i = 0; i < m_ic->nb_streams; i++) {
 		if(m_audioIdx < 0 && m_ic->streams[i]->codec->codec_type == AVMEDIA_TYPE_AUDIO)			m_audioIdx = i; 
 		if(m_videoIdx < 0 && m_ic->streams[i]->codec->codec_type == AVMEDIA_TYPE_VIDEO)
 			m_videoIdx = i;
@@ -80,15 +105,15 @@ void Film::init() {
 void Film::play() {
 	open();
 
-	while(m_quit) {
-		AVPacket *pkt = av_malloc(sizeof(AVPacket));
+	while(!m_quit) {
+		AVPacket *pkt = (AVPacket*)av_malloc(sizeof(AVPacket));
 		av_init_packet(pkt);
 
 		int ret = av_read_frame(m_ic, pkt);				
 		if(ret < 0) {
-			if(ret == AVERROR_EOF || url_eof(m_ic->pb))
+			if(ret == AVERROR_EOF || url_feof(m_ic->pb))
 				break;
-			if(m_ic->pb && m_ic->pb_error)
+			if(m_ic->pb && m_ic->pb->error)
 				break;
 			continue;
 		}	
@@ -101,13 +126,21 @@ void Film::play() {
 	}
 }
 
-void Film::push_pkt(int *pkt) {
+void Film::push_pkt(AVPacket *pkt) {
+	m_pktCount++;
+
+	cout << "push pkt: "
+			 << " NO! " << m_pktCount
+			 << " size: " << pkt->size
+			 << " type: " << ((pkt->stream_index == m_videoIdx) ? "video" : "audio")
+			 << endl;
+
 	m_pktQueue.push(pkt);	
 }
 
 
 Cinema::Cinema() {
-	init();
+	initDevice();
 }
 
 Cinema::~Cinema() {
@@ -115,14 +148,14 @@ Cinema::~Cinema() {
 }
 
 void Cinema::initDevice() {
+	
+	XInitThreads();
 	avcodec_register_all();
 	avdevice_register_all();
 	avfilter_register_all();
 	av_register_all();
 	avformat_network_init();
 
-	XInitThreads();
-	
 	m_screenWidth = 640;
 	m_screenHeight = 480;
 
@@ -130,6 +163,7 @@ void Cinema::initDevice() {
 
 void Cinema::playFilm(Film *film) {
 	m_film = film;	
+	m_film->play();
 }
 
 

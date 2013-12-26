@@ -1,10 +1,9 @@
 TARGET = player
 CC = g++
 
-CFLAGS += -I. -I/usr/local/include -g -Wall  -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_ISOC9X_SOURCE -std=c99
+CFLAGS += -I. -I/usr/local/include -g -Wall  -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_ISOC9X_SOURCE
 
 LDFLAGS += -lavdevice  -lavfilter -lswresample -lavformat -lavcodec -lavutil -lswscale -lGLU -lGL -lm -lz -lpthread -lX11 -lSDL
-
 
 SRC=$(wildcard *.cpp)
 OBJS=${SRC:%.cpp=%.o}
@@ -21,7 +20,7 @@ all: $(OBJS)
 clean:
 	rm -rf *.o $(TARGET) .dep
 
-%.o: %.c
+%.o: %.cpp
 	${CC} ${CFLAGS} -c $<
 	@mkdir -p .dep
 	${CC} -MM $(CFLAGS) $*.cpp > .dep/$*.d 
