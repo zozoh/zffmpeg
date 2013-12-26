@@ -41,50 +41,6 @@ extern "C" {
 
 using namespace std;
 
-class SerializePkt {
-	
-public:
-	SerializePkt();
-	SerializePkt(AVPacket *pkt);
-
-private:
-	friend class boost::serialization::access;
-	template<class Archive>
-	void serialize(Archive &ar, const unsigned int version); 
-
-private:
-	uint8_t *AVPacket_AVBufferRef_AVBuffer_data;		
-	int AVPacket_AVBufferRef_AVBuffer_size;
-	volatile int AVPacket_AVBufferRef_AVBuffer_refcount;
-	void(*AVPacket_AVBufferRef_AVBuffer_free)(void *opaque, uint8_t *data);
-	void *AVPacket_AVBufferRef_AVBuffer_opaque;
-	int AVPacket_AVBufferRef_AVBuffer_flags;
-
-	uint8_t AVPacket_AVBufferRef_data;
-	int AVPacket_AVBufferRef size;
-
-	int64_t AVPacket_pts;
-	int64_t AVPacket_dts;
-
-	uint8_t *AVPacket_data;
-	int AVPacket_size;
-
-	int AVPacket_stream_index;
-	int AVPacket_flags;
-
-	uint8_t *AVPacket_side_data_data;
-	int AVPacket_size_data_size;
-	enum AVPacketSideDataType  AVPacket_size_data_type;
-
-	int AVPacket_side_data_elems;
-
-	int AVPacket_duration;
-	int64_t AVPacket_pos;
-	int64_t AVPacket_convergence_duration;
-
-	AVPacket *pkt;
-};
-
 class MyAVPacket {
 public:
 	MyAVPacket();
@@ -92,8 +48,12 @@ public:
 private:
 	friend boost::serialization::access;
 	template<class Archive>
+	friend inline void load_construct_data(Archive &ar, MyAVPacket *t, const unsigned int file_version);
+	template<class Archive>
+	friend inline void save_construct_data(Archive &ar, const MyAVPacket *t, const unsigned int file_version);
+	template<class Archive>
 	void serialize(Archive &ar, const unsigned int version); 
-
+	
 public:
     int64_t pts;
     int64_t dts;

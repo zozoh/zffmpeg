@@ -21,9 +21,22 @@ template<class Archive>
 void MyAVPacket::serialize(Archive &ar, const unsigned int version) {
 	ar & pts;
 	ar & dts;
-		
+			
 }
 
+template<class Archive>
+inline void load_construct_data(Archive &ar, MyAVPacket *t, const unsigned int file_version) {
+
+	ar << t->size;
+}
+
+template<class Archive>
+inline void save_construct_data(Archive &ar, MyAVPacket *t, const unsigned int file_version) {
+
+	int size;
+	ar >> size;
+	::new(t)MyAVPacket(size);
+}
 
 
 Film::Film(string filePath) {
