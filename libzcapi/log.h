@@ -10,6 +10,8 @@
 
 #include <stdio.h>
 
+#include "datatime.h"
+
 #define MX_LOG_LV_FATAL   0
 #define MX_LOG_LV_WARN    1
 #define MX_LOG_LV_INFO    2
@@ -20,10 +22,8 @@
 
 //------------------------------------------------------------------------------
 #define _MSG(lv,fmt,args...)\
-	printf(lv": "fmt"\n", ##args);
-
-//	fprintf((_IO_FILE *)stdout,lv":%s: "fmt"\n", mx::DayNowus2str().c_str(), ##args);\
-//	fflush ((_IO_FILE *)stdout);
+    z_now_ms_day_print(); \
+	printf(" "lv": "fmt"\n", ##args);
 
 //------------------------------------------------------------------------------
 #if MX_LOG_LV == MX_LOG_LV_TRACE
