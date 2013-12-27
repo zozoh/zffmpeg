@@ -1,27 +1,98 @@
 #include "dumpPkg.h"
 
-SerializePkt::SerializePkt() {
-	m_pkt = NULL;
+SideData::SideData() {
+	init();
 }
 
-SerializePkt::SerializePkt(AVPacket *pkt) {
-	m_pkt = pkt;
+SideData::SideData(const int size) {
+	init();
+	this->size = size;
+	data = (uint8_t*)malloc(this->size);
+	memset(data, 0x0, sizeof(data));
+}
+
+SideData::~SideData() {
+	if(data) {
+		free(data);
+	}
+}
+
+void SideData::init() {
+	data = NULL;
+	size = 0;
+	type = AV_PKT_DATA_PALETTE; 
 }
 
 template<class Archive>
-void SerializePkt::serialize(Archive &ar, const unsigned int version) {
-	
+void SideData::serialize(Archive &ar, const unsigned int version) {
+	for(int i = 0; i < size; i++) {
+		ar & data[i];
+	}	
+	ar & type;
+}
+
+template<class Archive>
+inline void load_construct_data(Archive &ar, SideData *t, const unsigned int file_version) {
+	int size;
+	ar >> size;
+	::new(t)SideData(size);
+}
+
+template<class Archive>
+inline void save_construct_data(Archive &ar, const SideData *t, const unsigned int file_version) {
+	ar & t->size;	
 }
 
 MyAVPacket::MyAVPacket() {
-	
+	init();	
+}
+
+MyAVPacket::MyAVPacket(const int size) {
+	init();
+	this->size = size;
+	data = (uint8_t*)malloc(this->size);
+	memset(data, 0x0, sizeof(data));
+	//data = (uint8_t*)operator new(size);
+}
+
+MyAVPacket::~MyAVPacket() {
+	if(data) {
+		free(data);
+	}
+	//FIXME
+}
+
+void MyAVPacket::init() {
+	pts = 0;
+	dts = 0;
+	data = NULL;
+	size = 0;
+	stream_index = -1;
+	flags = -1;
+	side_data = NULL;
+	side_data_elems = 0;
+	duration = 0;
+	destruct = NULL;
+	priv = NULL;
+	pos = -1;
+	convergence_duration = 0;
 }
 
 template<class Archive>
 void MyAVPacket::serialize(Archive &ar, const unsigned int version) {
 	ar & pts;
 	ar & dts;
-			
+	for(int i = 0; i < size; i++) {
+		ar & data[i]; 
+	}
+	ar & stream_index;
+	ar & flags;
+	ar & side_data;
+	ar & side_data_elems;
+	ar & duration;
+	//FIXME
+	ar & pos;
+	ar & convergence_duration;
 }
 
 template<class Archive>

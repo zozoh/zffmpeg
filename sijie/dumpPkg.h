@@ -41,18 +41,46 @@ extern "C" {
 
 using namespace std;
 
+class SideData {
+public:
+	SideData();
+	SideData(const int size);
+	~SideData();
+
+private:
+	friend class boost::serialization::access;
+	template<class Archive>
+	friend inline void load_construct_data(Archive &ar, SideData *t, const unsigned int file_version);
+	template<class Archive>
+	friend inline void save_construct_data(Archive &ar, const SideData *t, const unsigned int file_version);
+	template<class Archive>
+	void serialize(Archive &ar, const unsigned int version);
+
+	void init();
+
+public:
+	uint8_t *data;
+	int      size;
+	enum AVPacketSideDataType type;
+};
+
 class MyAVPacket {
 public:
 	MyAVPacket();
+	MyAVPacket(const int size);
+
+	~MyAVPacket();
 
 private:
-	friend boost::serialization::access;
+	friend class boost::serialization::access;
 	template<class Archive>
 	friend inline void load_construct_data(Archive &ar, MyAVPacket *t, const unsigned int file_version);
 	template<class Archive>
 	friend inline void save_construct_data(Archive &ar, const MyAVPacket *t, const unsigned int file_version);
 	template<class Archive>
 	void serialize(Archive &ar, const unsigned int version); 
+
+	void init();
 	
 public:
     int64_t pts;
@@ -61,11 +89,7 @@ public:
     int   size;
     int   stream_index;
     int   flags;
-    struct {
-        uint8_t *data;
-        int      size;
-        enum AVPacketSideDataType type;
-    } *side_data;
+    SideData *side_data;
     int side_data_elems;
 
     int   duration;
