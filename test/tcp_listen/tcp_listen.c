@@ -1,37 +1,27 @@
+/*
+ * tcp_listen.c
+ *
+ *  Created on: Dec 30, 2013
+ *      Author: zozoh
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
 #include <stdint.h>
 #include <string.h>
 
-#include <libavcodec/avcodec.h>
-#include <libavformat/avformat.h>
-#include <libswscale/swscale.h>
-#include <libswresample/swresample.h>
-#include <libavutil/avstring.h>
-#include <libavutil/pixfmt.h>
-#include <libavutil/log.h>
-#include <libavutil/common.h>
-#include <libavutil/pixdesc.h>
-#include <libavutil/pixfmt.h>
-#include <libavutil/imgutils.h>
-#include <libavutil/avassert.h>
-#include <libavformat/avio.h>
-
 #include <libzcapi/tcp.h>
 #include <libzcapi/log.h>
 #include <libzcapi/datatime.h>
 #include <libzcapi/args.h>
-#include <libffsplit/zffsplit.h>
-
-#include "zplay.h"
 
 void parse_args(int i, const char *argnm, const char *argval, void *userdata)
 {
-    ZPlayArgs *args = (ZPlayArgs *) userdata;
+    int *port = (int *) userdata;
     if (0 == strcmp(argnm, "p"))
     {
-        args->port = atoi(argval);
+        *port = atoi(argval);
     }
 }
 
@@ -63,22 +53,19 @@ int main(int argc, char *argv[])
     // 防止错误
     if (argc != 2)
     {
-        printf("zplay useage: \n\n    %s\n\n", "zplay [-p=8722]");
+        printf("useage: \n\n    %s [-p=8722]\n\n", argv[0]);
         return EXIT_FAILURE;
     }
 
-    // 初始化 ffmpeg
-    av_register_all();
-
     // 得到参数
-    ZPlayArgs args;
-    z_args_m0_parse(argc, argv, parse_args, &args);
+    int port;
+    z_args_m0_parse(argc, argv, parse_args, &port);
 
     // 调用主逻辑
-    _I("hello : port is %d", args.port);
+    _I("hello : port is %d", port);
     z_tcp_context *ctx = z_tcp_alloc_context(1024);
-    ctx->app_name = "ZPlay";
-    ctx->port = args.port;
+    ctx->app_name = "test_tcp_listen";
+    ctx->port = port;
     ctx->msg = 0xFFFFFFFF;
     ctx->on_recv = on_recv;
     ctx->on_send = on_send;
