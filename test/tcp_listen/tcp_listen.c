@@ -27,10 +27,17 @@ void parse_args(int i, const char *argnm, const char *argval, void *userdata)
 
 int on_recv(int rsz, void *data, z_tcp_context *ctx)
 {
-    _I(" - zplay.on_recv : %d", rsz);
-    if (rsz == -1) return Z_TCP_CONTINUE;
-    if (rsz < 4) return Z_TCP_QUIT;
-    if (rsz < 5) return Z_TCP_CLOSE;
+    uint8_t * d = (uint8_t *) data;
+    char cs[100];
+    sprintf(cs,
+            "%02x %02x %02x %02x %02x %02x",
+            d[0],
+            d[1],
+            d[2],
+            d[3],
+            d[4],
+            d[5]);
+    _I(" - zplay.on_recv : %d : %s ...", rsz, cs);
     return Z_TCP_CONTINUE;
 }
 
