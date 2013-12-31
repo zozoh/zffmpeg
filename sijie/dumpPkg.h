@@ -41,59 +41,47 @@ extern "C" {
 
 using namespace std;
 
-class SerializePkt {
-	
+class SideData {
 public:
-	SerializePkt();
-	SerializePkt(AVPacket *pkt);
+	SideData();
+	SideData(const int size);
+	~SideData();
 
 private:
 	friend class boost::serialization::access;
 	template<class Archive>
-	void serialize(Archive &ar, const unsigned int version); 
+	friend inline void load_construct_data(Archive &ar, SideData *t, const unsigned int file_version);
+	template<class Archive>
+	friend inline void save_construct_data(Archive &ar, const SideData *t, const unsigned int file_version);
+	template<class Archive>
+	void serialize(Archive &ar, const unsigned int version);
 
-private:
-	uint8_t *AVPacket_AVBufferRef_AVBuffer_data;		
-	int AVPacket_AVBufferRef_AVBuffer_size;
-	volatile int AVPacket_AVBufferRef_AVBuffer_refcount;
-	void(*AVPacket_AVBufferRef_AVBuffer_free)(void *opaque, uint8_t *data);
-	void *AVPacket_AVBufferRef_AVBuffer_opaque;
-	int AVPacket_AVBufferRef_AVBuffer_flags;
+	void init();
 
-	uint8_t AVPacket_AVBufferRef_data;
-	int AVPacket_AVBufferRef size;
-
-	int64_t AVPacket_pts;
-	int64_t AVPacket_dts;
-
-	uint8_t *AVPacket_data;
-	int AVPacket_size;
-
-	int AVPacket_stream_index;
-	int AVPacket_flags;
-
-	uint8_t *AVPacket_side_data_data;
-	int AVPacket_size_data_size;
-	enum AVPacketSideDataType  AVPacket_size_data_type;
-
-	int AVPacket_side_data_elems;
-
-	int AVPacket_duration;
-	int64_t AVPacket_pos;
-	int64_t AVPacket_convergence_duration;
-
-	AVPacket *pkt;
+public:
+	uint8_t *data;
+	int      size;
+	enum AVPacketSideDataType type;
 };
 
 class MyAVPacket {
 public:
 	MyAVPacket();
+	MyAVPacket(const int size);
+
+	~MyAVPacket();
 
 private:
-	friend boost::serialization::access;
+	friend class boost::serialization::access;
+	template<class Archive>
+	friend inline void load_construct_data(Archive &ar, MyAVPacket *t, const unsigned int file_version);
+	template<class Archive>
+	friend inline void save_construct_data(Archive &ar, const MyAVPacket *t, const unsigned int file_version);
 	template<class Archive>
 	void serialize(Archive &ar, const unsigned int version); 
 
+	void init();
+	
 public:
     int64_t pts;
     int64_t dts;
@@ -101,11 +89,7 @@ public:
     int   size;
     int   stream_index;
     int   flags;
-    struct {
-        uint8_t *data;
-        int      size;
-        enum AVPacketSideDataType type;
-    } *side_data;
+    SideData *side_data;
     int side_data_elems;
 
     int   duration;
