@@ -28,6 +28,7 @@
 #ifndef LINKEDLIST_H_
 #define LINKEDLIST_H_
 //----------------------------------------------------------
+#include <pthread.h>
 #include "../z.h"
 //----------------------------------------------------------
 typedef struct z_lnklst
@@ -83,7 +84,7 @@ typedef struct z_lnklst_item
 
 } z_lnklst_item;
 //----------------------------------------------------------
-extern z_lnklst *z_lnklst_alloc();
+extern z_lnklst *z_lnklst_alloc(void (*free_li)(struct z_lnklst_item *li));
 extern void z_lnklst_free(z_lnklst *list);
 
 extern z_lnklst_item *z_lnklst_alloc_item(void *data, int size);

@@ -59,7 +59,6 @@ int on_send(int *size, void **data, struct z_tcp_context *ctx)
  */
 int main(int argc, char *argv[])
 {
-
     // 防止错误
     if (argc != 2)
     {

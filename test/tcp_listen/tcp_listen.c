@@ -75,7 +75,7 @@ int main(int argc, char *argv[])
     ctx->port = port;
     ctx->msg = 0xFFFFFFFF;
     ctx->on_recv = on_recv;
-    ctx->on_send = on_send;
+    //ctx->on_send = on_send;
 
     // 启动监听
     z_tcp_start_listen(ctx);

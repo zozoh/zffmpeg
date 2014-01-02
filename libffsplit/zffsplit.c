@@ -17,6 +17,17 @@
 //------------------------------------------------------------------------------
 #define ZFF_TLD_HEAD_SIZE 6
 //------------------------------------------------------------------------------
+// 根据给定的指针，读取四个字节，组成一个 uint32_t 的整数
+uint32_t zff_read_tld_len(uint8_t *p)
+{
+    uint32_t a = *(p);
+    uint32_t b = *(p + 1);
+    uint32_t c = *(p + 2);
+    uint32_t d = *(p + 3);
+
+    return a | (b << 8) | (c << 16) | (d << 24);
+}
+//------------------------------------------------------------------------------
 uint8_t *zff_tld_w(uint8_t *dest,
         uint8_t tag,
         uint32_t len,
@@ -53,13 +64,7 @@ uint8_t *zff_tld_w(uint8_t *dest,
 uint8_t *zff_tld_r(uint8_t *src, uint8_t *tag, uint32_t *len, void *data)
 {
     *tag = *src;
-
-    uint32_t a = *(src + 2);
-    uint32_t b = *(src + 3);
-    uint32_t c = *(src + 4);
-    uint32_t d = *(src + 5);
-
-    *len = a | (b << 8) | (c << 16) | (d << 24);
+    *len = zff_read_tld_len(src + 2);
 
     // 针对 extradata（0xE3）需要认为有 16 个 pad
     int pad = 0xE3 == *tag ? FF_INPUT_BUFFER_PADDING_SIZE : 0;
@@ -73,13 +78,38 @@ uint8_t *zff_tld_r(uint8_t *src, uint8_t *tag, uint32_t *len, void *data)
     return src + ZFF_TLD_HEAD_SIZE + *len;
 }
 //------------------------------------------------------------------------------
+// 在一块分配好的内存上，写入 TLD 的头部，out_size 为这块内存的总大小
+// 返回指向 TLD 的 data 部分的指针
+uint8_t *_write_tld_head(uint8_t tag, int out_size, uint8_t *dest)
+{
+    *dest = tag;
+    *(dest + 1) = 0x00;
+    uint32_t data_size = out_size - ZFF_TLD_HEAD_SIZE;
+    memcpy(dest + 2, &data_size, sizeof(data_size));
+    return dest + ZFF_TLD_HEAD_SIZE;
+}
+//------------------------------------------------------------------------------
+// 在一块 TLD 布局的内存上，检查头部的 6 个字节是否合法
+int _check_tld_head(uint8_t *src, int size, uint8_t expectTag)
+{
+    // 首先校验传来的 TLD 头部是不是合法
+    if (*src != expectTag) return -1;
+    if (*(src + 1) != 0x00) return -2;
+    // 读取长度
+    uint32_t len = zff_read_tld_len(src + 2);
+    if (len + ZFF_TLD_HEAD_SIZE != size) return -3;
+    // 恩 ... 看样子没啥子问题
+    return 0;
+}
+//------------------------------------------------------------------------------
 uint8_t *zff_avcodec_packet_w(int *out_size, AVPacket *src)
 {
     // 准备要 copy 的上下文
     AVPacket *pkt = src;
 
     // 首先需要计算要分配的内存大小
-    *out_size = 0;
+    // 首先是 6 个字节，为 0xE0
+    *out_size = ZFF_TLD_HEAD_SIZE;
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~: F1
     int sz_f1 = sizeof(AVPacket);
     if (sz_f1) *out_size += sz_f1 + ZFF_TLD_HEAD_SIZE;
@@ -97,8 +127,10 @@ uint8_t *zff_avcodec_packet_w(int *out_size, AVPacket *src)
         return NULL;
     }
 
+    // 写入头部
+    void *p = _write_tld_head(0xF0, *out_size, dest);
+
     // 开始 copy 主结构体部分
-    void *p = dest;
     p = zff_tld_w(p, 0xF1, sz_f1, pkt, 0);
     p = zff_tld_w(p, 0xF2, sz_f2, pkt->data, 0);
 
@@ -106,16 +138,21 @@ uint8_t *zff_avcodec_packet_w(int *out_size, AVPacket *src)
     return dest;
 }
 //------------------------------------------------------------------------------
-AVPacket *zff_avcodec_packet_r(uint8_t* src, int size)
+int zff_avcodec_packet_r(uint8_t* src, int size, AVPacket **pkt)
 {
+    // 首先校验传来的 TLD 头部是不是合法
+    int re = _check_tld_head(src, size, 0xF0);
+    if (re != 0) return re;
+
+    // 准备开始复制 ...
     uint8_t tag;
     uint32_t len;
-    uint8_t *p = src;     // 记录了每个 TLD copy 开始的位置
+    uint8_t *p = src + ZFF_TLD_HEAD_SIZE;     // 记录了每个 TLD copy 开始的位置
     uint8_t *data = NULL; // 记录每个传出的字段
 
     // 第一个 TLD 一定是 AVCodecContext 本身
     p = zff_tld_r(p, &tag, &len, &data);
-    AVPacket *pkt = (AVPacket *) data;
+    *pkt = (AVPacket *) data;
 
     // 继续读取 TLD ...
     for (;;)
@@ -136,7 +173,7 @@ AVPacket *zff_avcodec_packet_r(uint8_t* src, int size)
         switch (tag)
         {
         case 0xF2:
-            pkt->data = data;
+            (*pkt)->data = data;
             break;
         default:
             printf("!!! zff_avcodec_context_r:: unknowns tag %02X\n", tag);
@@ -144,15 +181,20 @@ AVPacket *zff_avcodec_packet_r(uint8_t* src, int size)
         }
 
     }
-
-    OK: return pkt;
+    // 一切 OK
+    OK: return 0;
 }
 //------------------------------------------------------------------------------
-AVCodecContext *zff_avcodec_context_r(uint8_t* src, int size)
+int zff_avcodec_context_r(uint8_t* src, int size, AVCodecContext **ctx)
 {
+    // 首先校验传来的 TLD 头部是不是合法
+    int re = _check_tld_head(src, size, 0xE0);
+    if (re != 0) return re;
+
+    // 准备开始复制 ...
     uint8_t tag;
     uint32_t len;
-    uint8_t *p = src;     // 记录了每个 TLD copy 开始的位置
+    uint8_t *p = src + ZFF_TLD_HEAD_SIZE;     // 记录了每个 TLD copy 开始的位置
     uint8_t *data = NULL; // 记录每个传出的字段
 
     // 第一个 TLD 一定是 AVCodecContext 本身
@@ -214,7 +256,9 @@ AVCodecContext *zff_avcodec_context_r(uint8_t* src, int size)
 
     }
 
-    OK: return c;
+    // 一切 OK
+    OK: *ctx = c;
+    return 0;
 }
 //------------------------------------------------------------------------------
 uint8_t *zff_avcodec_context_w(int *out_size, AVCodecContext *src)
@@ -224,7 +268,7 @@ uint8_t *zff_avcodec_context_w(int *out_size, AVCodecContext *src)
 
     // 首先需要计算要分配的内存大小
     int pad = FF_INPUT_BUFFER_PADDING_SIZE;
-    *out_size = 0;
+    *out_size = ZFF_TLD_HEAD_SIZE;
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~: E1
     int sz_e1 = sizeof(AVCodecContext);
     if (sz_e1) *out_size += sz_e1 + ZFF_TLD_HEAD_SIZE;
@@ -254,8 +298,10 @@ uint8_t *zff_avcodec_context_w(int *out_size, AVCodecContext *src)
         return NULL;
     }
 
+    // 写入头部
+    void *p = _write_tld_head(0xE0, *out_size, dest);
+
     // 开始 copy 主结构体部分
-    void *p = dest;
     if (sz_e1) p = zff_tld_w(p, 0xE1, sz_e1, c, 0);
     if (sz_e2) p = zff_tld_w(p, 0xE2, sz_e2, c->rc_eq, 0);
     if (sz_e3) p = zff_tld_w(p, 0xE3, sz_e3, c->extradata, pad);

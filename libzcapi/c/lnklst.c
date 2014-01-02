@@ -10,10 +10,11 @@
 #include <pthread.h>
 #include "lnklst.h"
 //------------------------------------------------------------------
-z_lnklst *z_lnklst_alloc()
+z_lnklst *z_lnklst_alloc(void (*free_li)(struct z_lnklst_item *li))
 {
     z_lnklst *list = malloc(sizeof(z_lnklst));
     memset(list, 0, sizeof(z_lnklst));
+    list->free_li = free_li;
     pthread_mutex_init(&list->mutex, NULL);
     return list;
 }
@@ -47,10 +48,14 @@ int _append_prev(z_lnklst_item *li, z_lnklst_item *new_li)
 {
     new_li->list = li->list;
     new_li->prev = li->prev;
+
     if (NULL != li->prev) li->prev->next = new_li;
     li->prev = new_li;
     new_li->next = li;
+
+    if (li->list->first == li) li->list->first = new_li;
     li->list->size++;
+
     return li->list->size;
 }
 //------------------------------------------------------------------
@@ -58,10 +63,15 @@ int _append_next(z_lnklst_item *li, z_lnklst_item *new_li)
 {
     new_li->list = li->list;
     new_li->next = li->next;
+
     if (NULL != li->next) li->next->prev = new_li;
+
     li->next = new_li;
     new_li->prev = li;
+
+    if (li->list->last == li) li->list->last = new_li;
     li->list->size++;
+
     return li->list->size;
 }
 //------------------------------------------------------------------
@@ -139,7 +149,7 @@ BOOL z_lnklst_pop_first(z_lnklst *list, void *data, int *size)
             *((void **) data) = list->first->data;
             *size = list->first->size;
 
-            list->first->next->prev = NULL;
+            if (NULL != list->first->next) list->first->next->prev = NULL;
             list->first = list->first->next;
             list->size--;
         }
@@ -160,7 +170,7 @@ BOOL z_lnklst_pop_last(z_lnklst *list, void *data, int *size)
             *((void **) data) = list->last->data;
             *size = list->last->size;
 
-            list->last->prev->next = NULL;
+            if (NULL != list->last->prev) list->last->prev->next = NULL;
             list->last = list->last->prev;
             list->size--;
         }

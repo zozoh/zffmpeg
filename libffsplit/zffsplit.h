@@ -10,6 +10,9 @@
 #ifndef ZFFSPLIT_H_
 #define ZFFSPLIT_H_
 //--------------------------------------------------------
+// 根据给定的指针，读取四个字节，组成一个 uint32_t 的整数
+extern uint32_t zff_read_tld_len(uint8_t *p);
+//--------------------------------------------------------
 /**
  * 将一个 TLD 数据写入目标内存区，data 指针表示的数据长度为 len
  * 写入的顺序为 tag->len->data ，一共将写入 1+2+len+pad 个8位字节
@@ -65,8 +68,9 @@ extern uint8_t *zff_avcodec_context_w(int *out_size, AVCodecContext *src);
 /**
  * 从内存中恢复一个 AVCodecContext 对象，它会为 AVCodecContext 重新分配内存，因此传入的内存可以释放了
  * 传入的参数 src 表示内存的起始位置，size 表示了这块内存的长度，函数读取到最后一个 TLD 会和总长度进行校验
+ * 本函数将初始化传入的指针 ctx，如果一切正常，返回 0， 否则是一系列错误码（都是负值）
  */
-extern AVCodecContext *zff_avcodec_context_r(uint8_t* src, int size);
+extern int zff_avcodec_context_r(uint8_t* src, int size, AVCodecContext **ctx);
 
 /**
  * 将一个 AVPacket 写入一块内存
@@ -75,8 +79,9 @@ extern uint8_t *zff_avcodec_packet_w(int *out_size, AVPacket *src);
 
 /**
  * 从一块内存中读出一个 AVPacket
+ * 本函数将初始化传入的指针 pkt，如果一切正常，返回 0， 否则是一系列错误码（都是负值）
  */
-extern AVPacket *zff_avcodec_packet_r(uint8_t* src, int size);
+extern int zff_avcodec_packet_r(uint8_t* src, int size, AVPacket **pkt);
 
 /**
  * 这个函数基本相当于从 ffmpeg 扒下来的代码，

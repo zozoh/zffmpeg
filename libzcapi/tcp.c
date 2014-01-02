@@ -107,6 +107,8 @@ BOOL _exec(z_tcp_context *ctx)
                      "tcps:: </on_recv re=%d>",
                      callback_re);
             _TCP_CHECK_CALLBACK;
+        }else{
+            return FALSE;
         }
     }
     return TRUE;

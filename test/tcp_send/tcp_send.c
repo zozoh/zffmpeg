@@ -77,7 +77,7 @@ int main(int argc, char *argv[])
     ctx->on_recv = on_recv;
     ctx->on_send = on_send;
 
-    // 启动监听
+    // 启动发送
     z_tcp_start_connect(ctx);
 
     // 释放
