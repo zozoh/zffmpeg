@@ -22,7 +22,9 @@
 #include <libzcapi/log.h>
 #include <libzcapi/datatime.h>
 #include <libzcapi/tcp.h>
+#include <libzcapi/tld.h>
 #include <libzcapi/c/lnklst.h>
+#include <libzcapi/alg/md5.h>
 #include <libffsplit/zffsplit.h>
 
 //------------------------------------------------------------------------
@@ -89,10 +91,17 @@ int tcp_on_send(int *size, void **data, struct z_tcp_context *ctx)
     FFSplitContext *sc = (FFSplitContext *) ctx->userdata;
 
     // 木有内容了，先休息 100 ms
-    if (z_lnklst_is_empty(sc->tlds)) usleep(100 * 1000);
+    while (z_lnklst_is_empty(sc->tlds))
+    {
+        //_I("------------------------------- z_lnklst_is_empty");
+        usleep(100 * 1000);
+    }
 
     // 弹出一块进行发送
     z_lnklst_pop_first(sc->tlds, data, size);
+
+    // 打印一下
+    tld_brief_print_data(*data, *size);
 
     return Z_TCP_CONTINUE;
 }
@@ -106,7 +115,7 @@ void *pthread_tld_sender(void *arg)
     z_tcp_context *ctx = z_tcp_alloc_context(1024 * 4);
     ctx->host_ipv4 = "127.0.0.1";
     ctx->port = port;
-    ctx->msg = 0xFFFFFFFF;
+    ctx->msg = 0x00;
     ctx->on_send = tcp_on_send;
     ctx->userdata = sc;
 
@@ -254,8 +263,6 @@ void _save_rgb_frame_to_file(FFSplitContext *sc, int iFrame)
     pFile = fopen(ph, "wb");
     if (pFile == NULL) return;
 
-    // printf("  >>> %s\n", ph);
-
     // Write header
     int width = sc->W;
     int height = sc->H;
@@ -268,6 +275,14 @@ void _save_rgb_frame_to_file(FFSplitContext *sc, int iFrame)
 
     // Close file
     fclose(pFile);
+
+    // show md5
+    char md5[33];
+    md5_context md5_ctx;
+    md5_file(&md5_ctx, ph);
+    md5_sprint(&md5_ctx, md5);
+
+    printf("  >>> %s (%s)\n", ph, md5);
 }
 //------------------------------------------------------------------------
 void _free_cloned_packet(AVPacket **pkt)
@@ -286,6 +301,13 @@ void _clone_packet(FFSplitContext *sc, AVPacket *src, AVPacket **pkt)
     uint8_t *data2 = malloc(size);
     memcpy(data2, data, size);
     z_lnklst_add_last(sc->tlds, z_lnklst_alloc_item(data2, size));
+
+    char md5[33];
+    md5_context md5_ctx;
+    md5_uint8(&md5_ctx, data2, size);
+    md5_sprint(&md5_ctx, md5);
+
+    _I("z_lnklst_add_last : %d : %s", sc->tlds->size, md5);
 
     if (0 != zff_avcodec_packet_r(data, size, pkt))
     {
@@ -312,9 +334,10 @@ void _read_packets_from_video(FFSplitContext *sc)
         if (re == AVERROR_EOF || re < 0) break;
 
         // 这个是我们读出来的包，先打印一下先
+        i++;
         /*
          printf("%08d [%d]: pos:%-9lld, sz:%-6u, data:%p(%d) \n",
-         i++,
+         i,
          pkt->stream_index,
          pkt->pos,
          sizeof(AVPacket),
@@ -325,6 +348,7 @@ void _read_packets_from_video(FFSplitContext *sc)
         if (pkt->stream_index == sc->v.sIndex)
         {
             AVPacket *p2 = NULL;
+            usleep(1000 * 1000);
             _clone_packet(sc, pkt, &p2);
             avcodec_decode_video2(sc->v.cc, sc->pFrame, &finished, p2);
             _free_cloned_packet(&p2);

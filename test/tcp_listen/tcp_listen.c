@@ -37,13 +37,13 @@ int on_recv(int rsz, void *data, z_tcp_context *ctx)
             d[3],
             d[4],
             d[5]);
-    _I(" - zplay.on_recv : %d : %s ...", rsz, cs);
+    _I(" - tcp_listen.on_recv : %d : %s ...", rsz, cs);
     return Z_TCP_CONTINUE;
 }
 
 char *abc = "zozoh is great!\n";
 
-int on_send(int *size, void **data, struct z_tcp_context *ctx)
+int on_send(int *size, void **data, z_tcp_context *ctx)
 {
     *size = strlen(abc);
     _I(" - zplay.on_send : %d", *size);

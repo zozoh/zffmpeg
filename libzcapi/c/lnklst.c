@@ -111,6 +111,7 @@ int z_lnklst_add_first(z_lnklst *list, z_lnklst_item *new_li)
             new_li->list = list;
             list->first = new_li;
             list->last = new_li;
+            list->size = 1;
         }
     }
     pthread_mutex_unlock(&list->mutex);
@@ -131,6 +132,7 @@ int z_lnklst_add_last(z_lnklst *list, z_lnklst_item *new_li)
             new_li->list = list;
             list->first = new_li;
             list->last = new_li;
+            list->size = 1;
         }
     }
     pthread_mutex_unlock(&list->mutex);
@@ -144,13 +146,15 @@ BOOL z_lnklst_pop_first(z_lnklst *list, void *data, int *size)
     *size = 0;
     pthread_mutex_lock(&list->mutex);
     {
-        if (list->first != NULL)
+        z_lnklst_item *li = list->first;
+        if (li != NULL)
         {
-            *((void **) data) = list->first->data;
-            *size = list->first->size;
+            *((void **) data) = li->data;
+            *size = li->size;
 
-            if (NULL != list->first->next) list->first->next->prev = NULL;
-            list->first = list->first->next;
+            if (NULL != li->next) li->next->prev = NULL;
+            list->first = li->next;
+            if (NULL == li->next) list->last = NULL;
             list->size--;
         }
     }
@@ -165,13 +169,15 @@ BOOL z_lnklst_pop_last(z_lnklst *list, void *data, int *size)
     *size = 0;
     pthread_mutex_lock(&list->mutex);
     {
-        if (list->last != NULL)
+        z_lnklst_item *li = list->last;
+        if (li != NULL)
         {
-            *((void **) data) = list->last->data;
-            *size = list->last->size;
+            *((void **) data) = li->data;
+            *size = li->size;
 
-            if (NULL != list->last->prev) list->last->prev->next = NULL;
-            list->last = list->last->prev;
+            if (NULL != li->prev) li->prev->next = NULL;
+            list->last = li->prev;
+            if (NULL == li->prev) list->first = NULL;
             list->size--;
         }
     }
@@ -243,6 +249,7 @@ void z_lnklst_remove(z_lnklst_item *li)
         z_lnklst_free_item(li);
         if (NULL != prev) prev->next = next;
         if (NULL != next) next->prev = prev;
+        li->list->size--;
     }
     pthread_mutex_unlock(&li->list->mutex);
 }
@@ -252,7 +259,7 @@ BOOL z_lnklst_is_empty(z_lnklst *list)
     BOOL re = TRUE;
     pthread_mutex_lock(&list->mutex);
     {
-        re = list->size > 0;
+        re = (list->size == 0);
     }
     pthread_mutex_unlock(&list->mutex);
     return re;

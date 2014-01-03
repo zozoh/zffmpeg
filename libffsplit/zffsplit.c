@@ -70,7 +70,7 @@ uint8_t *zff_tld_r(uint8_t *src, uint8_t *tag, uint32_t *len, void *data)
     int pad = 0xE3 == *tag ? FF_INPUT_BUFFER_PADDING_SIZE : 0;
 
     int sz = (*len) - pad;
-    uint8_t *dest = (uint8_t *) av_malloc(sz);
+    uint8_t *dest = (uint8_t *) malloc(sz);
     memcpy(dest, src + ZFF_TLD_HEAD_SIZE, sz);
 
     *((void **) data) = dest;

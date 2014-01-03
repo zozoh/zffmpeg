@@ -25,7 +25,17 @@
 #include <libffsplit/zffsplit.h>
 
 #include "zplay.h"
-
+//------------------------------------------------------------------------
+// 释放链表项的放方法
+void _free_li(struct z_lnklst_item *li)
+{
+    if (NULL != li->data)
+    {
+        free(li->data);
+        li->data = NULL;
+    }
+}
+//------------------------------------------------------------------------
 void parse_args(int i, const char *argnm, const char *argval, void *userdata)
 {
     ZPlayArgs *args = (ZPlayArgs *) userdata;
@@ -34,26 +44,49 @@ void parse_args(int i, const char *argnm, const char *argval, void *userdata)
         args->port = atoi(argval);
     }
 }
-
+//------------------------------------------------------------------------
 int on_recv(int rsz, void *data, z_tcp_context *ctx)
 {
-    _I(" - zplay.on_recv : %d", rsz);
-    if (rsz == -1) return Z_TCP_CONTINUE;
-    if (rsz < 4) return Z_TCP_QUIT;
-    if (rsz < 5) return Z_TCP_CLOSE;
+    TLDReceving *ring = (TLDReceving *) ctx->userdata;
+    uint8_t *d = (uint8_t *) data;
+
+    int n_used = 0;
+    while (n_used < rsz)
+    {
+        // 重新开启一个 TLD
+        if (NULL == ring->tld)
+        {
+            ring->tld = tld_alloc();
+            n_used += tld_copy_head(ring->tld, d + n_used, rsz - n_used);
+            if (tld_head_finished(ring->tld)) tld_parse_head(ring->tld);
+        }
+        // 头部还不完整
+        else if (!tld_head_finished(ring->tld))
+        {
+            n_used += tld_copy_head(ring->tld, d + n_used, rsz - n_used);
+            if (tld_head_finished(ring->tld)) tld_parse_head(ring->tld);
+        }
+        // 数据还不完整
+        else if (!tld_data_finished(ring->tld))
+        {
+            n_used += tld_copy_data(ring->tld, d + n_used, rsz - n_used);
+            if (tld_data_finished(ring->tld))
+            {
+                tld_brief_print(ring->tld);
+                tld_freep(&ring->tld);
+            }
+        }
+        // 见鬼了
+        else
+        {
+            _F("!!!tld receving impossible!!!");
+            exit(0);
+        }
+
+    }
     return Z_TCP_CONTINUE;
 }
-
-char *abc = "zozoh is great!\n";
-
-int on_send(int *size, void **data, struct z_tcp_context *ctx)
-{
-    *size = strlen(abc);
-    _I(" - zplay.on_send : %d", *size);
-    *data = abc;
-    return Z_TCP_CONTINUE;
-}
-
+//------------------------------------------------------------------------
 /**
  * 主程序入口：主要检查参数等
  */
@@ -73,14 +106,19 @@ int main(int argc, char *argv[])
     ZPlayArgs args;
     z_args_m0_parse(argc, argv, parse_args, &args);
 
+    // 创建主上下文
+    TLDReceving ring;
+    ring.tld = NULL;
+    ring.tlds = z_lnklst_alloc(_free_li);
+
     // 调用主逻辑
     _I("hello : port is %d", args.port);
     z_tcp_context *ctx = z_tcp_alloc_context(1024);
     ctx->app_name = "ZPlay";
     ctx->port = args.port;
-    ctx->msg = 0xFFFFFFFF;
+    ctx->msg = 0x00;
     ctx->on_recv = on_recv;
-    ctx->on_send = on_send;
+    ctx->userdata = &ring;
 
     // 启动监听
     z_tcp_start_listen(ctx);
@@ -91,3 +129,4 @@ int main(int argc, char *argv[])
     // 返回成功
     return EXIT_SUCCESS;
 }
+//------------------------------------------------------------------------
