@@ -116,7 +116,7 @@ int main(int argc, char *argv[])
     z_tcp_context *ctx = z_tcp_alloc_context(1024);
     ctx->app_name = "ZPlay";
     ctx->port = args.port;
-    ctx->msg = 0x00;
+    ctx->msg = 0x00; //Z_TCP_MSG_DUMP_DATA_RECV | Z_TCP_MSG_DUMP_DATA_SEND;
     ctx->on_recv = on_recv;
     ctx->userdata = &ring;
 

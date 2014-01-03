@@ -93,6 +93,8 @@ typedef struct z_tcp_context
 #define Z_TCP_MSG_BF_ONSEND  512
 #define Z_TCP_MSG_AF_ONSEND  1024
 #define Z_TCP_MSG_AF_CONNECT 2048
+#define Z_TCP_MSG_DUMP_DATA_SEND 4096
+#define Z_TCP_MSG_DUMP_DATA_RECV 8192
 
     // 当收到数据， z_tcp 会调用你给的这个回调函数，告诉你收到了多少字节，以及一个数据的起始指针。
     // 你需要做的就是，尽快处理，比如将这块内存 copy 出来，返回迅速返回。

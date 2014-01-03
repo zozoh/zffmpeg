@@ -11,6 +11,7 @@
 
 #include "log.h"
 #include "tcp.h"
+#include "tld.h"
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/tcp.h>
@@ -76,6 +77,14 @@ BOOL _exec(z_tcp_context *ctx)
                      "tcps:: send >>> %u/%u bytes",
                      bytes_sent,
                      data_size);
+
+            // 打印一下
+            if (Z_BON(ctx->msg, Z_TCP_MSG_DUMP_DATA_SEND))
+            {
+                _I("tcps:: it will send >>>");
+                tld_brief_print_data(data, data_size);
+            }
+
             bytes_sent += send(ctx->sid, data, data_size, 0);
             _TCP_MSG(Z_TCP_MSG_AF_SEND,
                      "tcps:: <<< send %u/%u bytes",
@@ -96,6 +105,13 @@ BOOL _exec(z_tcp_context *ctx)
                                   0);
         _TCP_MSG(Z_TCP_MSG_AF_RECV, "tcps:: >>> recv %d bytes", recv_len);
 
+        // 打印一下
+        if (Z_BON(ctx->msg, Z_TCP_MSG_DUMP_DATA_RECV))
+        {
+            _I("tcps:: it had recved <<<");
+            tld_brief_print_data(ctx->buf_recv, ctx->buf_recv_size);
+        }
+
         // 收到数据则调用回调
         if (recv_len > 0)
         {
@@ -107,7 +123,9 @@ BOOL _exec(z_tcp_context *ctx)
                      "tcps:: </on_recv re=%d>",
                      callback_re);
             _TCP_CHECK_CALLBACK;
-        }else{
+        }
+        else
+        {
             return FALSE;
         }
     }

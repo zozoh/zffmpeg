@@ -100,8 +100,9 @@ int tcp_on_send(int *size, void **data, struct z_tcp_context *ctx)
     // 弹出一块进行发送
     z_lnklst_pop_first(sc->tlds, data, size);
 
-    // 打印一下
-    tld_brief_print_data(*data, *size);
+    // 打印一下 MD5
+    uint8_t *d = (uint8_t *) *data;
+    tld_brief_print_data(d + TLD_HEAD_SIZE, (*size) - TLD_HEAD_SIZE);
 
     return Z_TCP_CONTINUE;
 }
@@ -115,7 +116,7 @@ void *pthread_tld_sender(void *arg)
     z_tcp_context *ctx = z_tcp_alloc_context(1024 * 4);
     ctx->host_ipv4 = "127.0.0.1";
     ctx->port = port;
-    ctx->msg = 0x00;
+    ctx->msg = 0x00; //Z_TCP_MSG_DUMP_DATA_RECV | Z_TCP_MSG_DUMP_DATA_SEND;
     ctx->on_send = tcp_on_send;
     ctx->userdata = sc;
 
@@ -282,7 +283,7 @@ void _save_rgb_frame_to_file(FFSplitContext *sc, int iFrame)
     md5_file(&md5_ctx, ph);
     md5_sprint(&md5_ctx, md5);
 
-    printf("  >>> %s (%s)\n", ph, md5);
+    //printf("  >>> %s (%s)\n", ph, md5);
 }
 //------------------------------------------------------------------------
 void _free_cloned_packet(AVPacket **pkt)
@@ -307,7 +308,7 @@ void _clone_packet(FFSplitContext *sc, AVPacket *src, AVPacket **pkt)
     md5_uint8(&md5_ctx, data2, size);
     md5_sprint(&md5_ctx, md5);
 
-    _I("z_lnklst_add_last : %d : %s", sc->tlds->size, md5);
+    //_I("z_lnklst_add_last : %d : %s", sc->tlds->size, md5);
 
     if (0 != zff_avcodec_packet_r(data, size, pkt))
     {
