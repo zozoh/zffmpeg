@@ -102,8 +102,8 @@ int tcp_on_send(int *size, void **data, struct z_tcp_context *ctx)
     z_lnklst_pop_first(sc->tlds, data, size);
 
     // 打印一下 MD5
-    uint8_t *d = (uint8_t *) *data;
-    tld_brief_print_data(d + TLD_HEAD_SIZE, (*size) - TLD_HEAD_SIZE);
+    // uint8_t *d = (uint8_t *) *data;
+    // tld_brief_print_data(d + TLD_HEAD_SIZE, (*size) - TLD_HEAD_SIZE);
 
     return Z_TCP_CONTINUE;
 }
@@ -148,6 +148,33 @@ void _open_video(FFSplitContext *sc)
     sc->fmtctx = NULL;
     AVDictionary *opts = NULL;
     avformat_open_input(&sc->fmtctx, sc->vph, NULL, &opts);
+
+    // 初始化 ffmpeg 流格式上下文
+    if (avformat_find_stream_info(sc->fmtctx, NULL) < 0)
+    {
+        _W("floader:: !!! fail to create format contex");
+        exit(0);
+    }
+}
+//------------------------------------------------------------------------
+// 打开流媒体
+void _open_stream(FFSplitContext *sc)
+{
+
+    sc->vph = "http://localhost:8090/test.flv";
+
+    // 打开格式上下文
+    sc->fmtctx = NULL;
+
+    AVDictionary *avdic = NULL;
+    char option_key[] = "rtsp_transport";
+    char option_value[] = "tcp";
+    av_dict_set(&avdic, option_key, option_value, 0);
+    char option_key2[] = "max_delay";
+    char option_value2[] = "5000000";
+    av_dict_set(&avdic, option_key2, option_value2, 0);
+
+    avformat_open_input(&sc->fmtctx, sc->vph, NULL, &avdic);
 
     // 初始化 ffmpeg 流格式上下文
     if (avformat_find_stream_info(sc->fmtctx, NULL) < 0)
@@ -273,7 +300,7 @@ void _save_rgb_frame_to_file(FFSplitContext *sc, int iFrame)
     md5_file(&md5_ctx, ph);
     md5_sprint(&md5_ctx, md5);
 
-    //printf("  >>> %s (%s)\n", ph, md5);
+    printf("  >>> %s (%s)\n", ph, md5);
 }
 //------------------------------------------------------------------------
 void _free_cloned_packet(AVPacket **pkt)
@@ -332,16 +359,18 @@ void _read_packets_from_video(FFSplitContext *sc)
     AVPacket *pkt = (AVPacket *) av_malloc(sizeof(AVPacket));
     int re = 0;
 
-    int64_t ms = 3000;
-    int64_t timestamp = (ms * sc->v.cc->time_base.den)
-            / (1000 * sc->v.cc->time_base.num);
-    re = av_seek_frame(sc->fmtctx, sc->v.sIndex, timestamp,
-    AVSEEK_FLAG_BACKWARD);
-    if (re < 0)
-    {
-        _F("fail to seek : re=%d", re);
-        exit(re);
-    }
+    /*
+     int64_t ms = 3000;
+     int64_t timestamp = (ms * sc->v.cc->time_base.den)
+     / (1000 * sc->v.cc->time_base.num);
+     re = av_seek_frame(sc->fmtctx, sc->v.sIndex, timestamp,
+     AVSEEK_FLAG_BACKWARD);
+     if (re < 0)
+     {
+     _F("fail to seek : re=%d", re);
+     exit(re);
+     }
+     */
 
     printf("reading AVPackets ...\n");
     int i = 0;
@@ -356,13 +385,13 @@ void _read_packets_from_video(FFSplitContext *sc)
         // 这个是我们读出来的包，先打印一下先
         i++;
 
-        /*printf("%08d [%d]: pos:%-9lld, sz:%-6u, data:%p(%d) \n",
-         i,
-         pkt->stream_index,
-         pkt->pos,
-         sizeof(AVPacket),
-         pkt->data,
-         pkt->size);*/
+        printf("AVPacket:: %4d si:%d: pos:%-9lld, sz:%-6u, data:%p(%d) \n",
+               i,
+               pkt->stream_index,
+               pkt->pos,
+               sizeof(AVPacket),
+               pkt->data,
+               pkt->size);
 
         // 试图解压一下，如果解压成功，把图片存出到目标路径
         if (pkt->stream_index == sc->v.sIndex)
@@ -375,10 +404,13 @@ void _read_packets_from_video(FFSplitContext *sc)
             if (finished)
             {
                 frameIndex++;
-                /*
-                 printf("----------------------> [%5d] : %lld\n",
-                 frameIndex,
-                 sc->pFrame->best_effort_timestamp);*/
+
+                printf("----------------------> [%5d] data:%p(%dx%d) : %lld\n",
+                       frameIndex,
+                       sc->pFrame->data,
+                       sc->pFrame->width,
+                       sc->pFrame->height,
+                       sc->pFrame->best_effort_timestamp);
 
                 // 保存到 PPM 文件中
                 sws_scale(sc->swsc,
@@ -388,7 +420,6 @@ void _read_packets_from_video(FFSplitContext *sc)
                           sc->H,
                           sc->pRGB->data,
                           sc->pRGB->linesize);
-
                 _save_rgb_frame_to_file(sc, frameIndex);
             }
         }
@@ -431,6 +462,8 @@ void _fill_picture_for_file(FFSplitContext *sc)
                    AV_PIX_FMT_RGB24,
                    sc->W,
                    sc->H);
+    sc->pRGB->width = sc->W;
+    sc->pRGB->height = sc->H;
 }
 //------------------------------------------------------------------------
 /**
@@ -440,6 +473,7 @@ void ffsplit(FFSplitContext *sc)
 {
     // 这里顺序初始化视频资源
     _open_video(sc);
+    //_open_stream(sc);
     _find_streams(sc);
     _open_codec(sc);
     _init_sws(sc);
@@ -483,6 +517,9 @@ int main(int argc, char *argv[])
 
     // 初始化 ffmpeg
     av_register_all();
+    avformat_network_init();
+
+    _I("abc999999999999999999999999999999999999999999999999999");
 
     // 得到参数
     FFSplitContext sc;

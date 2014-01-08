@@ -22,9 +22,28 @@
 #include <libzcapi/log.h>
 #include <libzcapi/datatime.h>
 #include <libzcapi/args.h>
+#include <libzcapi/alg/md5.h>
 #include <libffsplit/zffsplit.h>
 
 #include "zplay.h"
+//------------------------------------------------------------------------
+void _save_rgb_frame_to_file(TLDDecoding *dec, int iFrame)
+{
+    // 计算文件名
+    char ph[100];
+    sprintf(ph, "%s/fr_%08d.ppm", dec->args->ppmPath, iFrame);
+
+    // 写入到文件
+    zff_save_rgb_frame_to_file(ph, dec->pRGB);
+
+    // show md5
+    char md5[33];
+    md5_context md5_ctx;
+    md5_file(&md5_ctx, ph);
+    md5_sprint(&md5_ctx, md5);
+
+    printf("  >>> %s (%s)\n", ph, md5);
+}
 //------------------------------------------------------------------------
 // 释放链表项的放方法
 void _free_li(struct z_lnklst_item *li)
@@ -42,6 +61,11 @@ void parse_args(int i, const char *argnm, const char *argval, void *userdata)
     if (0 == strcmp(argnm, "p"))
     {
         args->port = atoi(argval);
+    }
+    else if (0 == strcmp(argnm, "ppm"))
+    {
+        args->ppmPath = malloc(strlen(argval)+1);
+        strcpy(args->ppmPath, argval);
     }
 }
 //------------------------------------------------------------------------
@@ -106,8 +130,6 @@ void _free_TLDDecoding(TLDDecoding *dec)
 void *pthread_decoding(void *arg)
 {
     TLDDecoding *dec = (TLDDecoding *) arg;
-    AVFrame *pFrame = (AVFrame *) avcodec_alloc_frame();
-    AVFrame *pRGB = (AVFrame *) avcodec_alloc_frame();
     int frameIndex = 0;
 
     while (TRUE)
@@ -152,7 +174,6 @@ void *pthread_decoding(void *arg)
                     exit(0);
                 }
 
-                //dec->cc = cc2;
                 dec->cc = avcodec_alloc_context3(c);
                 //dec->cc->thread_count = remoteCC->thread_count;
                 //dec->cc->thread_type = remoteCC->thread_type;
@@ -168,6 +189,41 @@ void *pthread_decoding(void *arg)
                        c->name);
                     exit(re);
                 }
+
+                // 这里初始化一下转换上下文
+                dec->W = dec->cc->width;
+                dec->H = dec->cc->height;
+                dec->swsc = sws_alloc_context();
+                sws_getCachedContext(dec->swsc,
+                                     dec->W,
+                                     dec->H,
+                                     dec->cc->pix_fmt,
+                                     dec->W,
+                                     dec->H,
+                                     AV_PIX_FMT_RGB24,
+                                     SWS_BICUBIC,
+                                     NULL,
+                                     NULL,
+                                     NULL);
+                if (dec->swsc == NULL)
+                {
+                    printf("Cannot initialize the conversion context!\n");
+                    exit(0);
+                }
+                // 准备输出的 RGB 镇的镇缓冲
+                uint8_t *buffer;
+                int numBytes;
+                // Determine required buffer size and allocate buffer
+                numBytes = avpicture_get_size(AV_PIX_FMT_RGB24, dec->W, dec->H);
+                buffer = (uint8_t *) av_malloc(numBytes * sizeof(uint8_t));
+
+                avpicture_fill((AVPicture *) dec->pRGB,
+                               buffer,
+                               AV_PIX_FMT_RGB24,
+                               dec->W,
+                               dec->H);
+                dec->pRGB->width = dec->W;
+                dec->pRGB->height = dec->H;
 
             }
             // 如果是 AVPacket 则开始解码
@@ -185,13 +241,21 @@ void *pthread_decoding(void *arg)
                 {
                     // 进行解码
                     // dec->cc->active_thread_type = 0;
-                    avcodec_decode_video2(dec->cc, pFrame, &finished, pkt);
+                    avcodec_decode_video2(dec->cc, dec->pFrame, &finished, pkt);
                     if (finished)
                     {
                         printf("----------------------> [%5d] : %lld\n",
-                               frameIndex++,
-                               pFrame->best_effort_timestamp);
-
+                               frameIndex,
+                               dec->pFrame->best_effort_timestamp);
+                        frameIndex++;
+                        sws_scale(dec->swsc,
+                                  dec->pFrame->data,
+                                  dec->pFrame->linesize,
+                                  0,
+                                  dec->H,
+                                  dec->pRGB->data,
+                                  dec->pRGB->linesize);
+                        _save_rgb_frame_to_file(dec, frameIndex);
                     }
                 }
                 // 释放包
@@ -221,9 +285,10 @@ void *pthread_decoding(void *arg)
 int main(int argc, char *argv[])
 {
     // 防止错误
-    if (argc != 2)
+    if (argc != 3)
     {
-        printf("zplay useage: \n\n    %s\n\n", "zplay [-p=8722]");
+        printf("zplay useage: \n\n    %s\n\n",
+               "zplay [-p=8722] [-ppm=/path/to/ppm_output]");
         return EXIT_FAILURE;
     }
 
@@ -234,6 +299,8 @@ int main(int argc, char *argv[])
     ZPlayArgs args;
     z_args_m0_parse(argc, argv, parse_args, &args);
 
+    printf("ZPlay listen:%d >> %s\n\n", args.port, args.ppmPath);
+
     // 创建接受逻辑上下文
     TLDReceving ring;
     ring.tld = NULL;
@@ -241,9 +308,12 @@ int main(int argc, char *argv[])
 
     // 创建消费逻辑上下文
     TLDDecoding dec;
+    dec.args = &args;
     dec.cc = NULL;
     dec.swsc = NULL;
     dec.tlds = ring.tlds;
+    dec.pFrame = (AVFrame *) avcodec_alloc_frame();
+    dec.pRGB = (AVFrame *) avcodec_alloc_frame();
 
     // 启动消费线程
     pthread_t tId;

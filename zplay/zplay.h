@@ -17,7 +17,9 @@
  */
 typedef struct
 {
-    int port;
+    int port;        // -p 监听的端口
+    char *ppmPath;   // -ppm 解码输出 ppm 到哪个文件夹
+
 } ZPlayArgs;
 
 /**
@@ -38,30 +40,19 @@ typedef struct
  */
 typedef struct
 {
+    ZPlayArgs *args;
+
     z_lnklst *tlds;
+
     struct SwsContext *swsc;
     struct AVCodecContext *cc;
+
+    int W;
+    int H;
+
+    AVFrame *pFrame;
+    AVFrame *pRGB;
+
 } TLDDecoding;
-
-typedef int (action_func)(AVCodecContext *c, void *arg);
-typedef int (action_func2)(AVCodecContext *c, void *arg, int jobnr, int threadnr);
-
-typedef struct ThreadContext {
-    pthread_t *workers;
-    action_func *func;
-    action_func2 *func2;
-    void *args;
-    int *rets;
-    int rets_count;
-    int job_count;
-    int job_size;
-
-    pthread_cond_t last_job_cond;
-    pthread_cond_t current_job_cond;
-    pthread_mutex_t current_job_lock;
-    int current_job;
-    unsigned int current_execute;
-    int done;
-} ThreadContext;
 
 #endif /* ZPLAY_H_ */
