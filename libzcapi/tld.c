@@ -52,7 +52,8 @@ void tld_brief_print_data(uint8_t *data, int data_size)
         for (int i = 0; i < data_size; i++)
         {
             if (i % 16 == 0) printf("\n\t");
-            printf(" %02X", *(data + i));
+            if (i % 2 == 0) printf(" ");
+            printf("%02X", *(data + i));
 
         }
     }
@@ -62,7 +63,8 @@ void tld_brief_print_data(uint8_t *data, int data_size)
         for (int i = 0; i < 5 * 16; i++)
         {
             if (i % 16 == 0) printf("\n\t");
-            printf(" %02X", *(data + i));
+            if (i % 2 == 0) printf(" ");
+            printf("%02X", *(data + i));
 
         }
         printf("\n\t ...\n\t ...");
@@ -70,7 +72,8 @@ void tld_brief_print_data(uint8_t *data, int data_size)
         for (int i = 0; i < 5 * 16; i++)
         {
             if (i % 16 == 0) printf("\n\t");
-            printf(" %02X", *(data + off + i));
+            if (i % 2 == 0) printf(" ");
+            printf("%02X", *(data + off + i));
 
         }
     }

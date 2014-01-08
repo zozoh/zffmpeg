@@ -23,6 +23,7 @@
 #include <libzcapi/datatime.h>
 #include <libzcapi/tcp.h>
 #include <libzcapi/tld.h>
+#include <libzcapi/files.h>
 #include <libzcapi/c/lnklst.h>
 #include <libzcapi/alg/md5.h>
 #include <libffsplit/zffsplit.h>
@@ -183,12 +184,13 @@ void _re_init(FFSplitContext *sc)
     // AVCodecContext *cc = avcodec_alloc_context3(NULL);
     // zff_avcodec_context_copy(cc, sc->v.cc);
     // 不 clone 一个，直接写到一块内存里，然后再读回来，依然能解码
+    _I("sc->v.cc->active_thread_type : %d", sc->v.cc->active_thread_type);
     sc->v.cc_data = zff_avcodec_context_w(&sc->v.cc_data_size, sc->v.cc);
 
     // 向发送队列里发送一份
     uint8_t *data = malloc(sc->v.cc_data_size);
     memcpy(data, sc->v.cc_data, sc->v.cc_data_size);
-    z_lnklst_add_last(sc->tlds, z_lnklst_alloc_item(data, sc->v.cc_data_size));
+    z_lnklst_add_last(sc->tlds, z_lnklst_item_alloc2(data, sc->v.cc_data_size));
 
     AVCodecContext *cc = NULL;
     if (0 != zff_avcodec_context_r(data, sc->v.cc_data_size, &cc))
@@ -236,16 +238,19 @@ void _open_codec(FFSplitContext *sc)
 // 初始化 sws 以便对每帧进行图像转换
 void _init_sws(FFSplitContext *sc)
 {
-    sc->swsc = sws_getContext(sc->W,
-                              sc->H,
-                              sc->v.cc->pix_fmt,
-                              sc->W,
-                              sc->H,
-                              AV_PIX_FMT_RGB24,
-                              SWS_BICUBIC,
-                              NULL,
-                              NULL,
-                              NULL);
+    sc->swsc = sws_alloc_context();
+    //sws_init_context(sc->swsc, NULL, NULL);
+    sws_getCachedContext(sc->swsc,
+                         sc->W,
+                         sc->H,
+                         sc->v.cc->pix_fmt,
+                         sc->W,
+                         sc->H,
+                         AV_PIX_FMT_RGB24,
+                         SWS_BICUBIC,
+                         NULL,
+                         NULL,
+                         NULL);
     if (sc->swsc == NULL)
     {
         printf("Cannot initialize the conversion context!\n");
@@ -255,27 +260,12 @@ void _init_sws(FFSplitContext *sc)
 //------------------------------------------------------------------------
 void _save_rgb_frame_to_file(FFSplitContext *sc, int iFrame)
 {
-    FILE *pFile;
+    // 计算文件名
     char ph[100];
-    int y;
-
-    // Open file
     sprintf(ph, "%s/ppm/fr_%08d.ppm", sc->dph, iFrame);
-    pFile = fopen(ph, "wb");
-    if (pFile == NULL) return;
 
-    // Write header
-    int width = sc->W;
-    int height = sc->H;
-    fprintf(pFile, "P6\n%d %d\n255\n", width, height);
-
-    // Write pixel data
-    AVFrame *pFrame = sc->pRGB;
-    for (y = 0; y < height; y++)
-        fwrite(pFrame->data[0] + y * pFrame->linesize[0], 1, width * 3, pFile);
-
-    // Close file
-    fclose(pFile);
+    // 写入到文件
+    zff_save_rgb_frame_to_file(ph, sc->pRGB);
 
     // show md5
     char md5[33];
@@ -301,16 +291,34 @@ void _clone_packet(FFSplitContext *sc, AVPacket *src, AVPacket **pkt)
 
     uint8_t *data2 = malloc(size);
     memcpy(data2, data, size);
-    z_lnklst_add_last(sc->tlds, z_lnklst_alloc_item(data2, size));
+    z_lnklst_add_last(sc->tlds, z_lnklst_item_alloc2(data2, size));
 
     char md5[33];
     md5_context md5_ctx;
     md5_uint8(&md5_ctx, data2, size);
     md5_sprint(&md5_ctx, md5);
 
+    // 保存到文件
+    char ph[100];
+    sprintf(ph, "%s/pkt/%08lld.pkt", sc->dph, src->pos);
+    z_fwrite(ph, data2 + 6, size - 6);
+
+    sprintf(ph, "%s/pkt/%08lld.info", sc->dph, src->pos);
+    char txt[200];
+    sprintf(txt,
+            "AVPacket: %d \nSI:%d du:%d pts:%lld dts:%lld data:%p(%d bytes)\n",
+            sizeof(AVPacket),
+            src->stream_index,
+            src->duration,
+            src->pts,
+            src->dts,
+            src->data,
+            src->size);
+    z_fwrite_str(ph, txt);
+
     //_I("z_lnklst_add_last : %d : %s", sc->tlds->size, md5);
 
-    if (0 != zff_avcodec_packet_r(data, size, pkt))
+    if (0 != zff_avcodec_packet_rdata(data + 6, size - 6, pkt))
     {
         printf("fuck fuck fuck fuck fuck fuck fuck fuck fuck fuck fuck fuck fuck fuck fuck \n");
         exit(0);
@@ -324,6 +332,17 @@ void _read_packets_from_video(FFSplitContext *sc)
     AVPacket *pkt = (AVPacket *) av_malloc(sizeof(AVPacket));
     int re = 0;
 
+    int64_t ms = 3000;
+    int64_t timestamp = (ms * sc->v.cc->time_base.den)
+            / (1000 * sc->v.cc->time_base.num);
+    re = av_seek_frame(sc->fmtctx, sc->v.sIndex, timestamp,
+    AVSEEK_FLAG_BACKWARD);
+    if (re < 0)
+    {
+        _F("fail to seek : re=%d", re);
+        exit(re);
+    }
+
     printf("reading AVPackets ...\n");
     int i = 0;
     int finished = 0;
@@ -336,8 +355,8 @@ void _read_packets_from_video(FFSplitContext *sc)
 
         // 这个是我们读出来的包，先打印一下先
         i++;
-        /*
-         printf("%08d [%d]: pos:%-9lld, sz:%-6u, data:%p(%d) \n",
+
+        /*printf("%08d [%d]: pos:%-9lld, sz:%-6u, data:%p(%d) \n",
          i,
          pkt->stream_index,
          pkt->pos,
@@ -349,14 +368,16 @@ void _read_packets_from_video(FFSplitContext *sc)
         if (pkt->stream_index == sc->v.sIndex)
         {
             AVPacket *p2 = NULL;
-            usleep(1000 * 1000);
+            // usleep(1000 * 1000);
             _clone_packet(sc, pkt, &p2);
             avcodec_decode_video2(sc->v.cc, sc->pFrame, &finished, p2);
             _free_cloned_packet(&p2);
             if (finished)
             {
-                /*printf("----------------------> [%5d] : %lld\n",
-                 frameIndex++,
+                frameIndex++;
+                /*
+                 printf("----------------------> [%5d] : %lld\n",
+                 frameIndex,
                  sc->pFrame->best_effort_timestamp);*/
 
                 // 保存到 PPM 文件中
@@ -368,7 +389,7 @@ void _read_packets_from_video(FFSplitContext *sc)
                           sc->pRGB->data,
                           sc->pRGB->linesize);
 
-                _save_rgb_frame_to_file(sc, frameIndex++);
+                _save_rgb_frame_to_file(sc, frameIndex);
             }
         }
     }

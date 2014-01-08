@@ -26,7 +26,12 @@ void z_lnklst_free(z_lnklst *list)
     free(list);
 }
 //------------------------------------------------------------------
-z_lnklst_item *z_lnklst_alloc_item(void *data, int size)
+z_lnklst_item *z_lnklst_item_alloc(void *data)
+{
+    return z_lnklst_item_alloc2(data, sizeof(data));
+}
+//------------------------------------------------------------------
+z_lnklst_item *z_lnklst_item_alloc2(void *data, int size)
 {
     z_lnklst_item *li = malloc(sizeof(z_lnklst_item));
     memset(li, 0, sizeof(z_lnklst_item));
@@ -35,7 +40,7 @@ z_lnklst_item *z_lnklst_alloc_item(void *data, int size)
     return li;
 }
 //------------------------------------------------------------------
-void z_lnklst_free_item(z_lnklst_item *li)
+void z_lnklst_item_free(z_lnklst_item *li)
 {
     if (NULL != li->data && NULL != li->list->free_li)
     {
@@ -228,7 +233,7 @@ int z_lnklst_clear(z_lnklst *list)
         while (NULL != li)
         {
             z_lnklst_item *next = li->next;
-            z_lnklst_free_item(li);
+            z_lnklst_item_free(li);
             li = next;
         }
         list->first = NULL;
@@ -246,7 +251,7 @@ void z_lnklst_remove(z_lnklst_item *li)
     {
         z_lnklst_item *prev = li->prev;
         z_lnklst_item *next = li->next;
-        z_lnklst_free_item(li);
+        z_lnklst_item_free(li);
         if (NULL != prev) prev->next = next;
         if (NULL != next) next->prev = prev;
         li->list->size--;

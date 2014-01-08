@@ -67,10 +67,13 @@ extern uint8_t *zff_avcodec_context_w(int *out_size, AVCodecContext *src);
 
 /**
  * 从内存中恢复一个 AVCodecContext 对象，它会为 AVCodecContext 重新分配内存，因此传入的内存可以释放了
- * 传入的参数 src 表示内存的起始位置，size 表示了这块内存的长度，函数读取到最后一个 TLD 会和总长度进行校验
+ * 传入的参数 pTag 表示内存的起始位置，size 表示了这块内存的长度，函数读取到最后一个 TLD 会和总长度进行校验
  * 本函数将初始化传入的指针 ctx，如果一切正常，返回 0， 否则是一系列错误码（都是负值）
  */
-extern int zff_avcodec_context_r(uint8_t* src, int size, AVCodecContext **ctx);
+extern int zff_avcodec_context_r(uint8_t* pTag, int size, AVCodecContext **ctx);
+extern int zff_avcodec_context_rdata(uint8_t* pData,
+        int size,
+        AVCodecContext **ctx);
 
 /**
  * 将一个 AVPacket 写入一块内存
@@ -81,7 +84,8 @@ extern uint8_t *zff_avcodec_packet_w(int *out_size, AVPacket *src);
  * 从一块内存中读出一个 AVPacket
  * 本函数将初始化传入的指针 pkt，如果一切正常，返回 0， 否则是一系列错误码（都是负值）
  */
-extern int zff_avcodec_packet_r(uint8_t* src, int size, AVPacket **pkt);
+extern int zff_avcodec_packet_r(uint8_t* pTag, int size, AVPacket **pkt);
+extern int zff_avcodec_packet_rdata(uint8_t* pData, int size, AVPacket **pkt);
 
 /**
  * 这个函数基本相当于从 ffmpeg 扒下来的代码，
@@ -90,5 +94,11 @@ extern int zff_avcodec_packet_r(uint8_t* src, int size, AVPacket **pkt);
  */
 extern int zff_avcodec_context_copy(AVCodecContext *dest,
         const AVCodecContext *src);
+extern void mp_copy_lav_codec_headers(AVCodecContext *avctx, AVCodecContext *st);
+//--------------------------------------------------------
+/**
+ * 将一个 AVFrame （已经被转换成 RGB 格式的）写入到一个 ppm 文件里，以便察看
+ */
+extern int zff_save_rgb_frame_to_file(char *dest, AVFrame *fr);
 //--------------------------------------------------------
 #endif /* ZFFSPLIT_H_ */

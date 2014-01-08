@@ -138,17 +138,24 @@ uint8_t *zff_avcodec_packet_w(int *out_size, AVPacket *src)
     return dest;
 }
 //------------------------------------------------------------------------------
-int zff_avcodec_packet_r(uint8_t* src, int size, AVPacket **pkt)
+int zff_avcodec_packet_r(uint8_t* pTag, int size, AVPacket **pkt)
 {
     // 首先校验传来的 TLD 头部是不是合法
-    int re = _check_tld_head(src, size, 0xF0);
+    int re = _check_tld_head(pTag, size, 0xF0);
     if (re != 0) return re;
 
+    return zff_avcodec_packet_rdata(pTag + ZFF_TLD_HEAD_SIZE,
+                                    size - ZFF_TLD_HEAD_SIZE,
+                                    pkt);
+}
+//------------------------------------------------------------------------------
+int zff_avcodec_packet_rdata(uint8_t* pData, int size, AVPacket **pkt)
+{
     // 准备开始复制 ...
     uint8_t tag;
     uint32_t len;
-    uint8_t *p = src + ZFF_TLD_HEAD_SIZE;     // 记录了每个 TLD copy 开始的位置
-    uint8_t *data = NULL; // 记录每个传出的字段
+    uint8_t *p = pData;     // 记录了每个 TLD copy 开始的位置
+    uint8_t *data = NULL;   // 记录每个传出的字段
 
     // 第一个 TLD 一定是 AVCodecContext 本身
     p = zff_tld_r(p, &tag, &len, &data);
@@ -158,12 +165,12 @@ int zff_avcodec_packet_r(uint8_t* src, int size, AVPacket **pkt)
     for (;;)
     {
         // 如果已经全部读完了，返回
-        if ((p - src) == size) goto OK;
+        if ((p - pData) == size) goto OK;
         // 超出了的话，我也不知道该怎么办，自裁吧 -_-!
-        if ((p - src) > size)
+        if ((p - pData) > size)
         {
             printf("!!! zff_avcodec_context_r:: out of range : %d/%d\n",
-                   (p - src),
+                   (p - pData),
                    size);
             exit(0);
         }
@@ -185,17 +192,24 @@ int zff_avcodec_packet_r(uint8_t* src, int size, AVPacket **pkt)
     OK: return 0;
 }
 //------------------------------------------------------------------------------
-int zff_avcodec_context_r(uint8_t* src, int size, AVCodecContext **ctx)
+int zff_avcodec_context_r(uint8_t* pTag, int size, AVCodecContext **ctx)
 {
     // 首先校验传来的 TLD 头部是不是合法
-    int re = _check_tld_head(src, size, 0xE0);
+    int re = _check_tld_head(pTag, size, 0xE0);
     if (re != 0) return re;
 
+    return zff_avcodec_context_rdata(pTag + ZFF_TLD_HEAD_SIZE,
+                                     size - ZFF_TLD_HEAD_SIZE,
+                                     ctx);
+}
+//------------------------------------------------------------------------------
+int zff_avcodec_context_rdata(uint8_t* pData, int size, AVCodecContext **ctx)
+{
     // 准备开始复制 ...
     uint8_t tag;
     uint32_t len;
-    uint8_t *p = src + ZFF_TLD_HEAD_SIZE;     // 记录了每个 TLD copy 开始的位置
-    uint8_t *data = NULL; // 记录每个传出的字段
+    uint8_t *p = pData;     // 记录了每个 TLD copy 开始的位置
+    uint8_t *data = NULL;   // 记录每个传出的字段
 
     // 第一个 TLD 一定是 AVCodecContext 本身
     p = zff_tld_r(p, &tag, &len, &data);
@@ -220,12 +234,12 @@ int zff_avcodec_context_r(uint8_t* src, int size, AVCodecContext **ctx)
     for (;;)
     {
         // 如果已经全部读完了，返回
-        if ((p - src) == size) goto OK;
+        if ((p - pData) == size) goto OK;
         // 超出了的话，我也不知道该怎么办，自裁吧 -_-!
-        if ((p - src) > size)
+        if ((p - pData) > size)
         {
             printf("!!! zff_avcodec_context_r:: out of range : %d/%d\n",
-                   (p - src),
+                   (p - pData),
                    size);
             exit(0);
         }
@@ -374,6 +388,55 @@ int zff_avcodec_context_copy(AVCodecContext *dest, const AVCodecContext *src)
     av_freep(&dest->extradata);
     av_freep(&dest->rc_eq);
     return AVERROR(ENOMEM);
+}
+//------------------------------------------------------------------------------
+void mp_copy_lav_codec_headers(AVCodecContext *avctx, AVCodecContext *st)
+{
+    if (st->extradata_size) {
+        av_free(avctx->extradata);
+        avctx->extradata_size = 0;
+        avctx->extradata =
+            av_mallocz(st->extradata_size + FF_INPUT_BUFFER_PADDING_SIZE);
+        if (avctx->extradata) {
+            avctx->extradata_size = st->extradata_size;
+            memcpy(avctx->extradata, st->extradata, st->extradata_size);
+        }
+    }
+    avctx->codec_tag                = st->codec_tag;
+    avctx->stream_codec_tag         = st->stream_codec_tag;
+    avctx->bit_rate                 = st->bit_rate;
+    avctx->width                    = st->width;
+    avctx->height                   = st->height;
+    avctx->pix_fmt                  = st->pix_fmt;
+    avctx->sample_aspect_ratio      = st->sample_aspect_ratio;
+    avctx->chroma_sample_location   = st->chroma_sample_location;
+    avctx->sample_rate              = st->sample_rate;
+    avctx->channels                 = st->channels;
+    avctx->block_align              = st->block_align;
+    avctx->channel_layout           = st->channel_layout;
+    avctx->audio_service_type       = st->audio_service_type;
+    avctx->bits_per_coded_sample    = st->bits_per_coded_sample;
+}
+//------------------------------------------------------------------------------
+int zff_save_rgb_frame_to_file(char *dest, AVFrame *fr)
+{
+    // Open file
+    FILE *pFile = fopen(dest, "wb");
+    if (pFile == NULL) return -1;
+
+    // Write header
+    int width = fr->width;
+    int height = fr->height;
+    fprintf(pFile, "P6\n%d %d\n255\n", width, height);
+
+    // Write pixel data
+    for (int y = 0; y < height; y++)
+        fwrite(fr->data[0] + y * fr->linesize[0], 1, width * 3, pFile);
+
+    // Close file
+    fclose(pFile);
+
+    return 0;
 }
 //------------------------------------------------------------------------------
 

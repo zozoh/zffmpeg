@@ -87,8 +87,9 @@ typedef struct z_lnklst_item
 extern z_lnklst *z_lnklst_alloc(void (*free_li)(struct z_lnklst_item *li));
 extern void z_lnklst_free(z_lnklst *list);
 
-extern z_lnklst_item *z_lnklst_alloc_item(void *data, int size);
-extern void z_lnklst_free_item(z_lnklst_item *li);
+extern z_lnklst_item *z_lnklst_item_alloc(void *data);
+extern z_lnklst_item *z_lnklst_item_alloc2(void *data, int size);
+extern void z_lnklst_item_free(z_lnklst_item *li);
 
 extern int z_lnklst_append_prev(z_lnklst_item *li, z_lnklst_item *new_li);
 extern int z_lnklst_append_next(z_lnklst_item *li, z_lnklst_item *new_li);
