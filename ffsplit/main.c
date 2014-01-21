@@ -112,7 +112,7 @@ void *pthread_tld_sender(void *arg)
 {
     FFSplitContext *sc = (FFSplitContext *) arg;
 
-    int port = 9999;
+    int port = 8750;
     _I("hello : port is %d", port);
     z_tcp_context *ctx = z_tcp_alloc_context(1024 * 4);
     ctx->host_ipv4 = "127.0.0.1";
@@ -212,7 +212,19 @@ void _re_init(FFSplitContext *sc)
     // zff_avcodec_context_copy(cc, sc->v.cc);
     // 不 clone 一个，直接写到一块内存里，然后再读回来，依然能解码
     _I("sc->v.cc->active_thread_type : %d", sc->v.cc->active_thread_type);
-    sc->v.cc_data = zff_avcodec_context_w(&sc->v.cc_data_size, sc->v.cc);
+    ZFFStream stream;
+    AVStream *avs = sc->fmtctx->streams[sc->v.sIndex];
+    stream.index = avs->index;
+    stream.type = 0;
+    stream.time_base.num = avs->time_base.num;
+    stream.time_base.den = avs->time_base.den;
+    stream.frame_rate.num = avs->r_frame_rate.num;
+    stream.frame_rate.den = avs->r_frame_rate.den;
+    stream.start_time = avs->start_time;
+    stream.duration = avs->duration;
+    sc->v.cc_data = zff_avcodec_context_w(&sc->v.cc_data_size,
+                                          sc->v.cc,
+                                          &stream);
 
     // 向发送队列里发送一份
     uint8_t *data = malloc(sc->v.cc_data_size);
@@ -220,7 +232,8 @@ void _re_init(FFSplitContext *sc)
     z_lnklst_add_last(sc->tlds, z_lnklst_item_alloc2(data, sc->v.cc_data_size));
 
     AVCodecContext *cc = NULL;
-    if (0 != zff_avcodec_context_r(data, sc->v.cc_data_size, &cc))
+    ZFFStream *pStream;
+    if (0 != zff_avcodec_context_r(data, sc->v.cc_data_size, &cc, &pStream))
     {
         printf("kao kao kao kao kao kao kao kao kao !!!");
         exit(0);
@@ -231,6 +244,9 @@ void _re_init(FFSplitContext *sc)
 
     sc->v.cc = cc;
     sc->v.codec = avcodec_find_decoder(cc->codec_id);
+    sc->v.sIndex = pStream->index;
+
+    free(pStream);
 
     // 打开视频解码器
     if (avcodec_open2(sc->v.cc, sc->v.codec, NULL) < 0)

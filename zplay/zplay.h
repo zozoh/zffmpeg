@@ -47,6 +47,8 @@ typedef struct
     struct SwsContext *swsc;
     struct AVCodecContext *cc;
 
+    uint8_t stream_index;
+
     int W;
     int H;
 

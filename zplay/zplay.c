@@ -64,7 +64,7 @@ void parse_args(int i, const char *argnm, const char *argval, void *userdata)
     }
     else if (0 == strcmp(argnm, "ppm"))
     {
-        args->ppmPath = malloc(strlen(argval)+1);
+        args->ppmPath = malloc(strlen(argval) + 1);
         strcpy(args->ppmPath, argval);
     }
 }
@@ -157,7 +157,11 @@ void *pthread_decoding(void *arg)
                 // 得到解码上下文
                 AVCodecContext *remoteCC;
                 AVCodec *c;
-                re = zff_avcodec_context_rdata(tld->data, tld->len, &remoteCC);
+                ZFFStream *pStream;
+                re = zff_avcodec_context_rdata(tld->data,
+                                               tld->len,
+                                               &remoteCC,
+                                               &pStream);
                 if (0 != re)
                 {
                     _F("fail to recover AVCodecContext from remote! re=%d", re);
@@ -175,6 +179,7 @@ void *pthread_decoding(void *arg)
                 }
 
                 dec->cc = avcodec_alloc_context3(c);
+                dec->stream_index = pStream->index;
                 //dec->cc->thread_count = remoteCC->thread_count;
                 //dec->cc->thread_type = remoteCC->thread_type;
                 // dec->cc->active_thread_type = remoteCC->active_thread_type;
@@ -237,7 +242,7 @@ void *pthread_decoding(void *arg)
                     printf("fuck fuck fuck fuck fuck fuck fuck fuck fuck fuck fuck fuck fuck fuck fuck \n");
                     exit(0);
                 }
-                if (pkt->stream_index == 0)
+                if (pkt->stream_index == dec->stream_index)
                 {
                     // 进行解码
                     // dec->cc->active_thread_type = 0;
@@ -310,6 +315,7 @@ int main(int argc, char *argv[])
     TLDDecoding dec;
     dec.args = &args;
     dec.cc = NULL;
+    dec.stream_index = 99;
     dec.swsc = NULL;
     dec.tlds = ring.tlds;
     dec.pFrame = (AVFrame *) avcodec_alloc_frame();

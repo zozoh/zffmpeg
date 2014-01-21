@@ -192,7 +192,10 @@ int zff_avcodec_packet_rdata(uint8_t* pData, int size, AVPacket **pkt)
     OK: return 0;
 }
 //------------------------------------------------------------------------------
-int zff_avcodec_context_r(uint8_t* pTag, int size, AVCodecContext **ctx)
+int zff_avcodec_context_r(uint8_t* pTag,
+        int size,
+        AVCodecContext **ctx,
+        ZFFStream **stream)
 {
     // 首先校验传来的 TLD 头部是不是合法
     int re = _check_tld_head(pTag, size, 0xE0);
@@ -200,10 +203,14 @@ int zff_avcodec_context_r(uint8_t* pTag, int size, AVCodecContext **ctx)
 
     return zff_avcodec_context_rdata(pTag + ZFF_TLD_HEAD_SIZE,
                                      size - ZFF_TLD_HEAD_SIZE,
-                                     ctx);
+                                     ctx,
+                                     stream);
 }
 //------------------------------------------------------------------------------
-int zff_avcodec_context_rdata(uint8_t* pData, int size, AVCodecContext **ctx)
+int zff_avcodec_context_rdata(uint8_t* pData,
+        int size,
+        AVCodecContext **ctx,
+        ZFFStream **stream)
 {
     // 准备开始复制 ...
     uint8_t tag;
@@ -263,6 +270,9 @@ int zff_avcodec_context_rdata(uint8_t* pData, int size, AVCodecContext **ctx)
         case 0xE6:
             c->rc_override = (RcOverride *) data;
             break;
+        case 0xEF:
+            *stream = (ZFFStream *) data;
+            break;
         default:
             printf("!!! zff_avcodec_context_r:: unknowns tag %02X\n", tag);
             exit(0);
@@ -275,7 +285,9 @@ int zff_avcodec_context_rdata(uint8_t* pData, int size, AVCodecContext **ctx)
     return 0;
 }
 //------------------------------------------------------------------------------
-uint8_t *zff_avcodec_context_w(int *out_size, AVCodecContext *src)
+uint8_t *zff_avcodec_context_w(int *out_size,
+        AVCodecContext *src,
+        ZFFStream *stream)
 {
     // 准备要 copy 的上下文
     AVCodecContext *c = src;
@@ -301,6 +313,9 @@ uint8_t *zff_avcodec_context_w(int *out_size, AVCodecContext *src)
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~: E6
     int sz_e6 = c->rc_override_count * sizeof(RcOverride);
     if (sz_e6) *out_size += sz_e6 + ZFF_TLD_HEAD_SIZE;
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~: EF
+    int sz_ef = sizeof(ZFFStream);
+    if (sz_ef) *out_size += sz_ef + ZFF_TLD_HEAD_SIZE;
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~:
     // 总大小为已经记录到 *out_size 中了
 
@@ -322,6 +337,7 @@ uint8_t *zff_avcodec_context_w(int *out_size, AVCodecContext *src)
     if (sz_e4) p = zff_tld_w(p, 0xE4, sz_e4, c->intra_matrix, 0);
     if (sz_e5) p = zff_tld_w(p, 0xE5, sz_e5, c->inter_matrix, 0);
     if (sz_e6) p = zff_tld_w(p, 0xE6, sz_e6, c->rc_override, 0);
+    if (sz_ef) p = zff_tld_w(p, 0xEF, sz_ef, stream, 0);
 
     // 返回成功
     return dest;
@@ -392,30 +408,32 @@ int zff_avcodec_context_copy(AVCodecContext *dest, const AVCodecContext *src)
 //------------------------------------------------------------------------------
 void mp_copy_lav_codec_headers(AVCodecContext *avctx, AVCodecContext *st)
 {
-    if (st->extradata_size) {
+    if (st->extradata_size)
+    {
         av_free(avctx->extradata);
         avctx->extradata_size = 0;
-        avctx->extradata =
-            av_mallocz(st->extradata_size + FF_INPUT_BUFFER_PADDING_SIZE);
-        if (avctx->extradata) {
+        avctx->extradata = av_mallocz(st->extradata_size
+                + FF_INPUT_BUFFER_PADDING_SIZE);
+        if (avctx->extradata)
+        {
             avctx->extradata_size = st->extradata_size;
             memcpy(avctx->extradata, st->extradata, st->extradata_size);
         }
     }
-    avctx->codec_tag                = st->codec_tag;
-    avctx->stream_codec_tag         = st->stream_codec_tag;
-    avctx->bit_rate                 = st->bit_rate;
-    avctx->width                    = st->width;
-    avctx->height                   = st->height;
-    avctx->pix_fmt                  = st->pix_fmt;
-    avctx->sample_aspect_ratio      = st->sample_aspect_ratio;
-    avctx->chroma_sample_location   = st->chroma_sample_location;
-    avctx->sample_rate              = st->sample_rate;
-    avctx->channels                 = st->channels;
-    avctx->block_align              = st->block_align;
-    avctx->channel_layout           = st->channel_layout;
-    avctx->audio_service_type       = st->audio_service_type;
-    avctx->bits_per_coded_sample    = st->bits_per_coded_sample;
+    avctx->codec_tag = st->codec_tag;
+    avctx->stream_codec_tag = st->stream_codec_tag;
+    avctx->bit_rate = st->bit_rate;
+    avctx->width = st->width;
+    avctx->height = st->height;
+    avctx->pix_fmt = st->pix_fmt;
+    avctx->sample_aspect_ratio = st->sample_aspect_ratio;
+    avctx->chroma_sample_location = st->chroma_sample_location;
+    avctx->sample_rate = st->sample_rate;
+    avctx->channels = st->channels;
+    avctx->block_align = st->block_align;
+    avctx->channel_layout = st->channel_layout;
+    avctx->audio_service_type = st->audio_service_type;
+    avctx->bits_per_coded_sample = st->bits_per_coded_sample;
 }
 //------------------------------------------------------------------------------
 int zff_save_rgb_frame_to_file(char *dest, AVFrame *fr)

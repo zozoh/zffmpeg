@@ -9,6 +9,19 @@
 
 #ifndef ZFFSPLIT_H_
 #define ZFFSPLIT_H_
+
+#include <libzcapi/z.h>
+//--------------------------------------------------------
+// 这里声明了一个结构，用来描述 AVCodecContext 所在流的信息
+typedef struct
+{
+    uint8_t type;   // 0.video, 1.audio
+    uint8_t index;
+    int64_t start_time;
+    int64_t duration;
+    ZFract time_base;
+    ZFract frame_rate;
+} ZFFStream;
 //--------------------------------------------------------
 // 根据给定的指针，读取四个字节，组成一个 uint32_t 的整数
 extern uint32_t zff_read_tld_len(uint8_t *p);
@@ -58,22 +71,30 @@ extern uint8_t *zff_tld_r(uint8_t *src, uint8_t *tag, uint32_t *len, void *data)
  *  #----------------------------------------------------------------------
  *  E6    # rc_override  : RcOverride * : 必须长度是
  *        #                         rc_override_count * sizeof(RcOverride)
+ *  #----------------------------------------------------------------------
+ *  EF    # 自己对应的视频流的 stream_index
  *
  * 函数 zff_avcodec_context_recover 将会从这片内存中恢复回一个 AVCodecContext 的实例
  * 返回一个新的指针指向新分配的内存，输出 sz 表示这片内存区域大大小。
  * 如果返回 NULL 表示失败，可能是没有更多内存了。
  */
-extern uint8_t *zff_avcodec_context_w(int *out_size, AVCodecContext *src);
+extern uint8_t *zff_avcodec_context_w(int *out_size,
+        AVCodecContext *src,
+        ZFFStream *stream);
 
 /**
  * 从内存中恢复一个 AVCodecContext 对象，它会为 AVCodecContext 重新分配内存，因此传入的内存可以释放了
  * 传入的参数 pTag 表示内存的起始位置，size 表示了这块内存的长度，函数读取到最后一个 TLD 会和总长度进行校验
  * 本函数将初始化传入的指针 ctx，如果一切正常，返回 0， 否则是一系列错误码（都是负值）
  */
-extern int zff_avcodec_context_r(uint8_t* pTag, int size, AVCodecContext **ctx);
+extern int zff_avcodec_context_r(uint8_t* pTag,
+        int size,
+        AVCodecContext **ctx,
+        ZFFStream **stream);
 extern int zff_avcodec_context_rdata(uint8_t* pData,
         int size,
-        AVCodecContext **ctx);
+        AVCodecContext **ctx,
+        ZFFStream **stream);
 
 /**
  * 将一个 AVPacket 写入一块内存
