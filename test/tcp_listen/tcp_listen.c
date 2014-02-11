@@ -63,6 +63,10 @@ int main(int argc, char *argv[])
         printf("useage: \n\n    %s [-p=8722]\n\n", argv[0]);
         return EXIT_FAILURE;
     }
+#define ABC(nm) \
+    printf("%s", #nm);
+
+    ABC(aaa);
 
     // 得到参数
     int port;

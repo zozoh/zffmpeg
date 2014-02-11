@@ -247,16 +247,24 @@ int z_lnklst_clear(z_lnklst *list)
 //------------------------------------------------------------------
 void z_lnklst_remove(z_lnklst_item *li)
 {
-    pthread_mutex_lock(&li->list->mutex);
+    z_lnklst *list = li->list;
+    pthread_mutex_lock(&list->mutex);
     {
         z_lnklst_item *prev = li->prev;
         z_lnklst_item *next = li->next;
+        if(li == list->first){
+            list->first = next;
+        }
+        if(li == list->last){
+            list->last = prev;
+        }
+
         z_lnklst_item_free(li);
         if (NULL != prev) prev->next = next;
         if (NULL != next) next->prev = prev;
-        li->list->size--;
+        list->size--;
     }
-    pthread_mutex_unlock(&li->list->mutex);
+    pthread_mutex_unlock(&list->mutex);
 }
 //------------------------------------------------------------------
 BOOL z_lnklst_is_empty(z_lnklst *list)

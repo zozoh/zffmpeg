@@ -115,7 +115,7 @@ void *pthread_tld_sender(void *arg)
     int port = 8750;
     _I("hello : port is %d", port);
     z_tcp_context *ctx = z_tcp_alloc_context(1024 * 4);
-    ctx->host_ipv4 = "127.0.0.1";
+    ctx->host_ipv4 = "192.168.2.160";
     ctx->port = port;
     ctx->msg = 0x00; //Z_TCP_MSG_DUMP_DATA_RECV | Z_TCP_MSG_DUMP_DATA_SEND;
     ctx->on_send = tcp_on_send;
@@ -175,6 +175,27 @@ void _open_stream(FFSplitContext *sc)
     av_dict_set(&avdic, option_key2, option_value2, 0);
 
     avformat_open_input(&sc->fmtctx, sc->vph, NULL, &avdic);
+
+    // 初始化 ffmpeg 流格式上下文
+    if (avformat_find_stream_info(sc->fmtctx, NULL) < 0)
+    {
+        _W("floader:: !!! fail to create format contex");
+        exit(0);
+    }
+}
+//------------------------------------------------------------------------
+void _open_stream2(FFSplitContext *sc)
+{
+
+    sc->vph = "rtsp://192.168.2.191:554/user=admin&password=admin&channel=1&stream=0.sdp";
+
+    // 打开格式上下文
+    sc->fmtctx = NULL;
+
+    AVDictionary *opts = 0;
+    av_dict_set(&opts, "rtsp_transport", "udp", 0);
+
+    avformat_open_input(&sc->fmtctx, sc->vph, NULL, &opts);
 
     // 初始化 ffmpeg 流格式上下文
     if (avformat_find_stream_info(sc->fmtctx, NULL) < 0)
@@ -332,21 +353,25 @@ void _clone_packet(FFSplitContext *sc, AVPacket *src, AVPacket **pkt)
     int size = -1;
     uint8_t *data = zff_avcodec_packet_w(&size, src);
 
-    uint8_t *data2 = malloc(size);
-    memcpy(data2, data, size);
-    z_lnklst_add_last(sc->tlds, z_lnklst_item_alloc2(data2, size));
+    /*uint8_t *data2 = malloc(size);
+    memcpy(data2, data, size);*/
+    z_lnklst_add_last(sc->tlds, z_lnklst_item_alloc2(data, size));
+    *pkt = src;
 
-    char md5[33];
+    /*char md5[33];
     md5_context md5_ctx;
     md5_uint8(&md5_ctx, data2, size);
     md5_sprint(&md5_ctx, md5);
+    */
 
     // 保存到文件
-    char ph[100];
+    /*char ph[100];
     sprintf(ph, "%s/pkt/%08lld.pkt", sc->dph, src->pos);
     z_fwrite(ph, data2 + 6, size - 6);
 
+
     sprintf(ph, "%s/pkt/%08lld.info", sc->dph, src->pos);
+
     char txt[200];
     sprintf(txt,
             "AVPacket: %d \nSI:%d du:%d pts:%lld dts:%lld data:%p(%d bytes)\n",
@@ -358,15 +383,17 @@ void _clone_packet(FFSplitContext *sc, AVPacket *src, AVPacket **pkt)
             src->data,
             src->size);
     z_fwrite_str(ph, txt);
+    */
 
     //_I("z_lnklst_add_last : %d : %s", sc->tlds->size, md5);
-
+    /*
     if (0 != zff_avcodec_packet_rdata(data + 6, size - 6, pkt))
     {
         printf("fuck fuck fuck fuck fuck fuck fuck fuck fuck fuck fuck fuck fuck fuck fuck \n");
         exit(0);
     }
     av_free(data);
+    */
 }
 //------------------------------------------------------------------------
 // 循环读取视频的数据包
@@ -415,7 +442,7 @@ void _read_packets_from_video(FFSplitContext *sc)
             AVPacket *p2 = NULL;
             // usleep(1000 * 1000);
             _clone_packet(sc, pkt, &p2);
-            avcodec_decode_video2(sc->v.cc, sc->pFrame, &finished, p2);
+            /*avcodec_decode_video2(sc->v.cc, sc->pFrame, &finished, p2);
             _free_cloned_packet(&p2);
             if (finished)
             {
@@ -437,7 +464,7 @@ void _read_packets_from_video(FFSplitContext *sc)
                           sc->pRGB->data,
                           sc->pRGB->linesize);
                 _save_rgb_frame_to_file(sc, frameIndex);
-            }
+            }*/
         }
     }
 
@@ -488,8 +515,8 @@ void _fill_picture_for_file(FFSplitContext *sc)
 void ffsplit(FFSplitContext *sc)
 {
     // 这里顺序初始化视频资源
-    _open_video(sc);
-    //_open_stream(sc);
+    //_open_video(sc);
+    _open_stream2(sc);
     _find_streams(sc);
     _open_codec(sc);
     _init_sws(sc);
